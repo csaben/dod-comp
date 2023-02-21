@@ -7,6 +7,7 @@ from publisher import Publisher
 from subscriber import Subscriber
 from AiManager import AiManager
 from Ai import heuristic_agent
+from Toy import Toy
 
 if __name__ == '__main__':
     print("Initializing AI client")
@@ -19,7 +20,8 @@ if __name__ == '__main__':
 
     #Initialize AiManager
     # ai_manager = AiManager(publisher)
-    ai_manager = heuristic_agent(publisher)
+    # ai_manager = heuristic_agent(publisher)
+    ai_manager = Toy(publisher)
 
     #Register subscriber functions of Ai manager and begin listening for messages
     subscriber.registerSubscribers(ai_manager)

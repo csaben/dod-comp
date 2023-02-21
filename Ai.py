@@ -39,6 +39,14 @@ class heuristic_agent(AiManager):
         # To advance in step mode, its required to return an OutputPb
         self.ai_pub.publish(output_message)
         #self.ai_pub.publish(OutputPb())
+        
+        with open("./sample.txt", 'w') as f:
+            f.write("assets")
+            f.write("\n")
+            f.write(str(self.assets))
+            f.write("tracked targets")
+            f.write('\n')
+            f.write(str(self.tracks))
 
     def createActions(self, msg:StatePb):
         # # ShipActionPb's go into an OutputPb message
@@ -80,6 +88,7 @@ class heuristic_agent(AiManager):
                 ship_action_2: ShipActionPb = ShipActionPb()
 
                 try:
+                    print("=====================================")
                     ship_action_1.TargetId = self.targets[ct]
                     ship_action_1.AssetName = k
                     ship_action_1.weapon = "Cannon_System"
@@ -98,28 +107,6 @@ class heuristic_agent(AiManager):
                 output_message.actions.append(ship_action_2)
                 return output_message
 
-            # elif self.timer>100:
-            #     ship_action_1: ShipActionPb = ShipActionPb()
-            #     ship_action_2: ShipActionPb = ShipActionPb()
-
-            #     try:
-            #         ship_action_1.TargetId = self.targets[ct]
-            #         ship_action_1.AssetName = k
-            #         ship_action_1.weapon = "Cannon_System"
-            #         ct+=1
-            #     except Exception as e:
-            #         print(e)
-
-            #     try:
-            #         ship_action_2.TargetId = self.targets[ct]
-            #         ship_action_2.AssetName = k
-            #         ship_action_2.weapon = "Chainshot_System"
-            #         ct+=1
-            #     except:
-            #         continue
-            #     output_message.actions.append(ship_action_1)
-            #     output_message.actions.append(ship_action_2)
-            #     return output_message
             
         else:
             return output_message
