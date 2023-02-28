@@ -68,10 +68,10 @@ class State(AiManager):
         # sys.exit()
 
 
-    def printStateAsDict(self, msg:StatePb):
-        from protobuf_to_dict import protobuf_to_dict, get_field_names_and_options
-        for field, field_name, options in get_field_names_and_options(PlannerProto_pb2.StatePb):
-            print('name: {}, options: {}'.format(field_name, options))
+    # def printStateAsDict(self, msg:StatePb):
+    #     from protobuf_to_dict import protobuf_to_dict, get_field_names_and_options
+    #     for field, field_name, options in get_field_names_and_options(PlannerProto_pb2.StatePb):
+    #         print('name: {}, options: {}'.format(field_name, options))
 
 
     def createActions(self, msg:StatePb):
