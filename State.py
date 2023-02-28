@@ -20,7 +20,8 @@ class State(AiManager):
         # self.printStateAsDict(msg)
         output_message: OutputPb = OutputPb()
         self.ai_pub.publish(output_message)
-        self.cleanState(msg)
+        # self.cleanState(msg)
+        self.generateState(msg)
 
     # This method/message is used to notify of new scenarios/runs
     def receiveScenarioInitializedNotificationPb(self, msg:ScenarioInitializedNotificationPb):
@@ -31,6 +32,25 @@ class State(AiManager):
         print("Ended Run: " + str(msg.sessionId) + " with score: " + str(msg.score))
     # Example function for building OutputPbs, returns OutputPb
 
+    def generateState(self, msg:StatePb):
+        json_dict = self.cleanState(msg)
+
+        #bunch of if thens to decide what state we are in
+
+        #idle
+        if 'Tracks' not in json_dict:
+            with open("./dev.json", 'a') as f:
+                f.write(json.dumps("idle"))
+            print("idle")
+        else:
+            with open("./dev.json", 'a') as f:
+                f.write(json.dumps(json_dict))
+            print(json_dict['Tracks'])
+
+
+
+
+
     def cleanState(self, msg:StatePb):
         #StatePb
         message = PlannerProto_pb2.StatePb()
@@ -38,10 +58,14 @@ class State(AiManager):
         msg = msg.SerializeToString()
         message.ParseFromString(msg)
         message_dict = MessageToDict(message)
-        json_str = json.dumps(message_dict)
-        print(json_str)
-        import sys
-        sys.exit()
+        # json_str = json.dumps(message_dict)
+        # print(json_str)
+        return message_dict
+        # print(json_str)
+        # with open("./state.json", 'w') as f:
+        #     f.write(json_str)
+        # import sys
+        # sys.exit()
 
 
     def printStateAsDict(self, msg:StatePb):
