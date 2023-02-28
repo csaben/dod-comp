@@ -77,20 +77,26 @@ class State(AiManager):
                 pass
             else:
                 for weapon in asset['weapons']:
-                    if weapon['WeaponState'] == 'Ready' and weapon["Quantity"] >0:
-                        print(target_id)
-                        self.memory.append(target_id)
-                        print("memory: ", self.memory)
-                        print(weapon['SystemName'], asset['AssetName'])
-                        with open("./issue1.json", 'a') as f:
-                            f.write(str(target_id))
-                            f.write(str(self.memory))
-                        # import sys
-                        # sys.exit()
+                    print(weapon)
+                    #BUG: quantity sometimes not given by the planner
+                    try:
+                        if weapon['WeaponState'] == 'Ready' and weapon["Quantity"] >0:
+                            print(target_id)
+                            self.memory.append(target_id)
+                            print("memory: ", self.memory)
+                            # print(weapon['SystemName'], asset['AssetName'])
+                            # with open("./issue1.json", 'a') as f:
+                            #     f.write(str(target_id))
+                            #     f.write(str(self.memory))
+                            # import sys
+                            # sys.exit()
 
-                        return  weapon['SystemName'], asset['AssetName']
-                    else:
+                            return  weapon['SystemName'], asset['AssetName']
+                        else:
+                            pass
+                    except Exception as e:
                         pass
+
 
     def calculateExecutionOrder(self, missle_list, origin) -> list: #of tuples
         # t = (s/m) * m = s
@@ -121,7 +127,7 @@ class State(AiManager):
             if asset['health'] ==-1:
                 pass
             else:
-                print(asset)
+                # print(asset)
                 origin+= np.array([asset['PositionX'], asset['PositionY']])
         return origin/(len(asset_list)-1)
 
