@@ -58,7 +58,7 @@ class State(AiManager):
                 ship_action: ShipActionPb = ShipActionPb()
                 #set the target id to the missle id
                 ship_action.TargetId = missle[1]
-                ship_action.AssetName, ship_action.weapon \
+                ship_action.weapon, ship_action.AssetName \
                         = self.whoShootsFirst(json_dict['assets'], missle[1])
 
                 output_message.actions.append(ship_action)
@@ -78,9 +78,13 @@ class State(AiManager):
             else:
                 for weapon in asset['weapons']:
                     if weapon['WeaponState'] == 'Ready' and weapon["Quantity"] >0:
+                        print(target_id)
                         self.memory.append(target_id)
                         print("memory: ", self.memory)
                         print(weapon['SystemName'], asset['AssetName'])
+                        with open("./issue1.json", 'a') as f:
+                            f.write(str(target_id))
+                            f.write(str(self.memory))
                         # import sys
                         # sys.exit()
 
