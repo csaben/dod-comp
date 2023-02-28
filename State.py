@@ -8,20 +8,21 @@ from AiManager import AiManager
 from google.protobuf.json_format import MessageToDict, ParseDict
 import json
 import PlannerProto_pb2
+import numpy as np
 
 class State(AiManager):
     # Constructor
     def __init__(self, publisher:Publisher):
         print("Constructing AI Manager")
         self.ai_pub = publisher
+        self.memory = []
    
     # Is passed StatePb from Planner
     def receiveStatePb(self, msg:StatePb):
         # self.printStateAsDict(msg)
         output_message: OutputPb = OutputPb()
+        output_message = self.generateState(msg)
         self.ai_pub.publish(output_message)
-        # self.cleanState(msg)
-        self.generateState(msg)
 
     # This method/message is used to notify of new scenarios/runs
     def receiveScenarioInitializedNotificationPb(self, msg:ScenarioInitializedNotificationPb):
@@ -39,13 +40,92 @@ class State(AiManager):
 
         #idle
         if 'Tracks' not in json_dict:
-            with open("./dev.json", 'a') as f:
-                f.write(json.dumps("idle"))
             print("idle")
+            output_message: OutputPb = OutputPb()
+            return output_message
         else:
-            with open("./dev.json", 'a') as f:
-                f.write(json.dumps(json_dict))
-            print(json_dict['Tracks'])
+            origin = self.calculateOrigin(json_dict['assets'])
+            #execution order is a list of tuples (time, id)
+            execution_order = self.calculateExecutionOrder(json_dict['Tracks'], origin)
+            output_message: OutputPb = OutputPb()
+
+            execution_order = [enemy for enemy in execution_order if enemy[1] not in self.memory]
+            print(execution_order)
+            #make sure its still sorted (it should be lol)
+            execution_order = sorted(execution_order, key=lambda x: x[0])
+
+            for missle in execution_order:
+                ship_action: ShipActionPb = ShipActionPb()
+                #set the target id to the missle id
+                ship_action.TargetId = missle[1]
+                ship_action.AssetName, ship_action.weapon \
+                        = self.whoShootsFirst(json_dict['assets'], missle[1])
+
+                output_message.actions.append(ship_action)
+            return output_message
+
+
+    def whoShootsFirst(self, assets, target_id)-> tuple:
+        '''
+        (
+        ship_action.AssetName = "Galleon HVU"
+        ship_action.weapon = "Chainshot_System"
+        )
+        '''
+        for asset in assets:
+            if asset['health'] == -1:
+                pass
+            else:
+                for weapon in asset['weapons']:
+                    if weapon['WeaponState'] == 'Ready' and weapon["Quantity"] >0:
+                        self.memory.append(target_id)
+                        print("memory: ", self.memory)
+                        print(weapon['SystemName'], asset['AssetName'])
+                        # import sys
+                        # sys.exit()
+
+                        return  weapon['SystemName'], asset['AssetName']
+                    else:
+                        pass
+
+    def calculateExecutionOrder(self, missle_list, origin) -> list: #of tuples
+        # t = (s/m) * m = s
+        intercept_times=[]
+        #get position, divide by speed, sort by lowest time to intercept
+        #exclude elevation for now
+        for missle in missle_list:
+            #easier to read
+            x = missle['PositionX']
+            y = missle['PositionY']
+            vx = missle['VelocityX']
+            vy = missle['VelocityY']
+
+            #distance eqn
+            d = np.sqrt((x-origin[0])**2 + (y-origin[1])**2)
+            #velocity eqn
+            dv = np.sqrt(vx**2 + vy**2)
+
+            #time to intercept
+            t = d/dv
+            intercept_times.append((t, missle['TrackId']))
+
+        return sorted(intercept_times, key=lambda x: x[0])
+
+    def calculateOrigin(self, asset_list) -> np.ndarray:
+        origin = np.array([0,0], dtype=float)
+        for asset in asset_list:
+            if asset['health'] ==-1:
+                pass
+            else:
+                print(asset)
+                origin+= np.array([asset['PositionX'], asset['PositionY']])
+        return origin/(len(asset_list)-1)
+
+
+
+
+
+
 
 
 
