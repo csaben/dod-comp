@@ -32,7 +32,7 @@ class heuristic_agent(AiManager):
         output_message = self.createActions(msg)
         print("Time: " + str(msg.time))
         self.timer = msg.time
-        print(output_message) 
+        # print(output_message) 
         print("Score: " + str(msg.score))
 
 
@@ -81,11 +81,16 @@ class heuristic_agent(AiManager):
         self.assets.pop("Galleon_REFERENCE_SHIP")
         print(len(self.assets))
         ct=0
+        shots = 0
         for (k,v) in self.assets.items():
 
-            if self.timer>210:
+            if self.timer>210 and shots==0:
                 ship_action_1: ShipActionPb = ShipActionPb()
                 ship_action_2: ShipActionPb = ShipActionPb()
+                # print("+"*50)
+                # print(ship_action_1)
+                # print(ship_action_2)
+                # print("+"*50)
 
                 try:
                     print("=====================================")
@@ -103,6 +108,8 @@ class heuristic_agent(AiManager):
                     ct+=1
                 except:
                     continue
+                print(ship_action_1)
+                print(ship_action_2)
                 output_message.actions.append(ship_action_1)
                 output_message.actions.append(ship_action_2)
                 return output_message
