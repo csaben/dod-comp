@@ -18,7 +18,7 @@ class State(AiManager):
         self.ai_pub = publisher
         self.memory = []
         #depends on model
-        self.directory = Path("./output/")
+        self.directory = Path("./ShaneOutput/")
         self.base_file = "ttd_state.json"
         self.filepath = self.get_next_filepath(self.directory, self.base_file)
 
