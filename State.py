@@ -35,6 +35,10 @@ class State(AiManager):
 
     def generateState(self, msg:StatePb):
         json_dict = self.cleanState(msg)
+        # (Shane) Append state as dictionary to output file
+        with open("outputStates.txt", "a") as file:
+            file.write(json.dumps(json_dict)+"\n")
+        file.close()
 
         #bunch of if thens to decide what state we are in
 
