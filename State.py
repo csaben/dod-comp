@@ -142,6 +142,7 @@ class State(AiManager):
 
     @staticmethod
     def calculateOrigin(asset_list) -> np.ndarray:
+        gamma = 1e-6
         origin = np.array([0,0], dtype=float)
         for asset in asset_list:
             if asset['health'] ==-1:
@@ -149,7 +150,7 @@ class State(AiManager):
             else:
                 # print(asset)
                 origin+= np.array([asset['PositionX'], asset['PositionY']])
-        return origin/(len(asset_list)-1)
+        return origin/(len(asset_list)-1 + gamma)
 
 
 
