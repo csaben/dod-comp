@@ -4,3 +4,5 @@ numpy
 #pywin32==3.0.2
 #pywin32-ctypes==0.2.0
 #pywinauto==0.6.8
+torch
+transformers
