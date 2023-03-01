@@ -7,6 +7,7 @@ import json
 from config import *
 from State import State
 import torch
+from utils import *
 
 from transformers.utils import logging
 logging.set_verbosity_info()
@@ -22,17 +23,24 @@ def main():
     data_dir = './ShaneOutput/'
     data_files = os.listdir(data_dir)
     paths_of_files = [os.path.join(data_dir, basename) for basename in data_files]
+    
+    for path in paths_of_files:
+        with open(path, 'r', encoding='utf-8') as f:
+            #load json string from json file
+            data = f.read().replace('\n', ',')
+            data = '['+data[:-1]+']'
+            data = json.loads(data)
+            data = preprocess(data)
+            save_pickle(data, './preprocessed_data/', 'preprocessed_data')
 
-# open the file
-    with open(paths_of_files[0], 'r', encoding='utf-8') as f:
-        #load json string from json file
-        data = f.read().replace('\n', ',')
-        data = '['+data[:-1]+']'
-        data = json.loads(data)
+def save_pickle(data, directory, base_filename):
+    # Get next available file path
+    directory = Path(directory)
+    file_path = get_next_filepath(directory, base_filename)
 
-    # preprocess(data)
-    # print(data)
-    preprocess(data)
+    # Save data to file
+    with open(file_path, 'wb') as f:
+        pickle.dump(data, f)
 
 def preprocess(game):
     import sys
@@ -170,11 +178,20 @@ def preprocess(game):
             parent_tensor = torch.cat((parent_tensor, tensor), 0)
         except:
             pass
+
+    # pad parent tensor to (n, 300)
+    # if parent_tensor.shape[0] < 300:
+    #     min = torch.zeros((300-parent_tensor.shape[0], parent_tensor.shape[1]), dtype=torch.float32)
+    #     parent_tensor = torch.cat((parent_tensor, min), 0)
+
     print(parent_tensor.shape)
+    # sys.exit()
+
+    return parent_tensor
     #index a tensor and see its execution order
 
     #how to print out the label
-    print(parent_tensor[0, -60:])
+    # print(parent_tensor[0, -60:])
     #should only have been thirty but we allowed exec order to be a tuple
 
     #save to a pkl or return 
