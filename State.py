@@ -100,26 +100,24 @@ class State(AiManager):
                 for weapon in asset['weapons']:
                     print(weapon)
                     #BUG: quantity sometimes not given by the planner
-                    try:
-                        if weapon['WeaponState'] == 'Ready' and weapon["Quantity"] >0:
-                            print(target_id)
-                            self.memory.append(target_id)
-                            print("memory: ", self.memory)
-                            # print(weapon['SystemName'], asset['AssetName'])
-                            # with open("./issue1.json", 'a') as f:
-                            #     f.write(str(target_id))
-                            #     f.write(str(self.memory))
-                            # import sys
-                            # sys.exit()
+                    if weapon['WeaponState'] == 'Ready' and weapon["Quantity"]:
+                        print(target_id)
+                        self.memory.append(target_id)
+                        print("memory: ", self.memory)
+                        # print(weapon['SystemName'], asset['AssetName'])
+                        # with open("./issue1.json", 'a') as f:
+                        #     f.write(str(target_id))
+                        #     f.write(str(self.memory))
+                        # import sys
+                        # sys.exit()
 
-                            return  weapon['SystemName'], asset['AssetName']
-                        else:
-                            pass
-                    except Exception as e:
+                        return  weapon['SystemName'], asset['AssetName']
+                    else:
                         pass
 
 
-    def calculateExecutionOrder(self, missle_list, origin) -> list: #of tuples
+    @staticmethod
+    def calculateExecutionOrder(missle_list, origin) -> list: #of tuples
         # t = (s/m) * m = s
         intercept_times=[]
         #get position, divide by speed, sort by lowest time to intercept
@@ -142,7 +140,8 @@ class State(AiManager):
 
         return sorted(intercept_times, key=lambda x: x[0])
 
-    def calculateOrigin(self, asset_list) -> np.ndarray:
+    @staticmethod
+    def calculateOrigin(asset_list) -> np.ndarray:
         origin = np.array([0,0], dtype=float)
         for asset in asset_list:
             if asset['health'] ==-1:
