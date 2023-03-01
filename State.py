@@ -7,6 +7,7 @@ from publisher import Publisher
 from AiManager import AiManager
 from google.protobuf.json_format import MessageToDict, ParseDict
 import json
+from pathlib import Path
 import PlannerProto_pb2
 import numpy as np
 
@@ -16,6 +17,12 @@ class State(AiManager):
         print("Constructing AI Manager")
         self.ai_pub = publisher
         self.memory = []
+        #depends on model
+        self.directory = Path("./output/")
+        self.base_file = "ttd_state.json"
+        self.filepath = self.get_next_filepath(self.directory, self.base_file)
+
+
    
     # Is passed StatePb from Planner
     def receiveStatePb(self, msg:StatePb):
@@ -33,14 +40,24 @@ class State(AiManager):
         print("Ended Run: " + str(msg.sessionId) + " with score: " + str(msg.score))
     # Example function for building OutputPbs, returns OutputPb
 
+    # function to get the next available file path
+    def get_next_filepath(self, directory, base_filename):
+        index = 1
+        while True:
+            filename = f"{base_filename}_{index}.json"
+            filepath = directory / filename
+            if not filepath.exists():
+                return filepath
+            index += 1
+
     def generateState(self, msg:StatePb):
         json_dict = self.cleanState(msg)
         # (Shane) Append state as dictionary to output file
-        with open("outputStates.txt", "a") as file:
-            file.write(json.dumps(json_dict)+"\n")
-        file.close()
 
-        #bunch of if thens to decide what state we are in
+        #needs to make new file if file already tyhere
+
+        with open(self.filepath, "a") as file:
+            file.write(json.dumps(json_dict)+"\n")
 
         #idle
         if 'Tracks' not in json_dict:
