@@ -20,7 +20,7 @@ TOKENIZER = BertTokenizer.from_pretrained("bert-base-uncased")
 
 def main():
     # 1. Load data
-    data_dir = './ShaneOutput/'
+    data_dir = './output2/'
     data_files = os.listdir(data_dir)
     paths_of_files = [os.path.join(data_dir, basename) for basename in data_files]
     

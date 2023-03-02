@@ -18,7 +18,7 @@ class State(AiManager):
         self.ai_pub = publisher
         self.memory = []
         #depends on model
-        self.directory = Path("./ShaneOutput/")
+        self.directory = Path("./output2/")
         self.base_file = "ttd_state.json"
         self.filepath = self.get_next_filepath(self.directory, self.base_file)
 
@@ -100,7 +100,8 @@ class State(AiManager):
                 for weapon in asset['weapons']:
                     print(weapon)
                     #BUG: quantity sometimes not given by the planner
-                    if weapon['WeaponState'] == 'Ready' and weapon["Quantity"]:
+                    if weapon['WeaponState'] == 'Ready' and "Quantity" in weapon.keys():
+
                         print(target_id)
                         self.memory.append(target_id)
                         print("memory: ", self.memory)
