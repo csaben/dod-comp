@@ -8,6 +8,7 @@ from config import *
 from State import State
 import torch
 from utils import *
+import sys
 
 from transformers.utils import logging
 logging.set_verbosity_info()
@@ -20,7 +21,7 @@ TOKENIZER = BertTokenizer.from_pretrained("bert-base-uncased")
 
 def main():
     # 1. Load data
-    data_dir = './output2/'
+    data_dir = './output3/'
     data_files = os.listdir(data_dir)
     paths_of_files = [os.path.join(data_dir, basename) for basename in data_files]
     
@@ -31,23 +32,70 @@ def main():
             data = '['+data[:-1]+']'
             data = json.loads(data)
             data = preprocess(data)
-            save_pickle(data, './preprocessed_data/', 'preprocessed_data')
+            save_pickle(data, './tensor_pkls/', 'game')
 
 def save_pickle(data, directory, base_filename):
     # Get next available file path
     directory = Path(directory)
+    #remove the .json
     file_path = get_next_filepath(directory, base_filename)
+    file_path = file_path.replace(".json", ".pkl")
 
     # Save data to file
     with open(file_path, 'wb') as f:
         pickle.dump(data, f)
 
 def preprocess(game):
-    import sys
     # Extract values from dictionary
+    #for g in game:
+    #    print(g)
+    #    sys.exit()
 
     #make a parent tensor
     parent_tensor = torch.tensor([], dtype=torch.float32)
+    for data in game:
+        time = data.get("time")
+
+        #grab all asset info IGNORE REFERENCE SHIP
+        state={}
+        hvu_info=[] # (1, root=6 + Lle=9 + weapons=6) note that PositionZ==0 effectively
+        galleon_info=[]
+
+
+        for asset in data:
+            #exclude the reference ship
+            if asset.get("AssetName")!="Galleon_REFERENCE_SHIP":
+
+
+            #no else needed
+
+        #grab all track info
+
+        #grab memory info
+        memory = data.get("memory")
+
+        #PUT INTO A TENSOR WITH FOLLOWING LOGIC
+
+        # #put each part of the data into a {key: [ 1d array of info ], ... }
+        # #then we unpack our dict into a tensor
+        # state = np.array([*state.values()]).flatten()
+        # #check dimension is (1,info_size)
+        # state = torch.tensor(state)
+        # #return
+
+'''
+put into json beautify for reference
+
+{"time": 7.04, "assets": [{"AssetName": "Galleon_REFERENCE_SHIP", "health": -1, "Lle": [25.0, -85.0, 0.0]}, {"AssetName": "HVU_Galleon_0", "isHVU": true, "health": 4, "PositionX": -2090.7503700031953, "PositionY": -1912.9656896674192, "PositionZ": -9.313225746154785e-10, "Lle": [24.982794848101822, -85.02074343642636, -9.313225746154785e-10], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}, {"AssetName": "Galleon_0", "health": 4, "PositionX": 7990.763960490963, "PositionY": 762.3615578821006, "Lle": [25.006835064375593, -84.92070390431094, 0.0], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}, {"AssetName": "Galleon_1", "health": 4, "PositionX": 6957.581669786882, "PositionY": -6417.88484277356, "Lle": [24.942266662046222, -84.93099289933922, 0.0], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}, {"AssetName": "Galleon_2", "health": 4, "PositionX": 32.76703285792545, "PositionY": -20.605749014037492, "Lle": [24.999814687693693, -84.9996748559751, 0.0], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}, {"AssetName": "Galleon_3", "health": 4, "PositionX": -693.0984865226911, "PositionY": 10136.633202978932, "Lle": [25.091160774106736, -85.0068826702868, 0.0], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}], "Tracks": [{"TrackId": 7, "ThreatId": "ENEMY_29", "ThreatRelationship": "Hostile", "Lle": [25.40612367205538, -85.28340844850591, 616.3077166797593], "PositionX": -28466.1029544425, "PositionY": 45188.796130634626, "PositionZ": 616.3077166797593, "VelocityX": 427.2232954378035, "VelocityY": -536.8693627181444, "VelocityZ": 9.451500926583016}], "memory": [7]}
+
+'''
+
+
+
+
+
+    #USE BELOW AS REFERECNE
+    ######################################################################
     for data in game:
         #remove AssetName reference ship
         data['assets'] = [asset for asset in data['assets'] if asset['AssetName'] !=
