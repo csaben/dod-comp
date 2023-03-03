@@ -75,13 +75,15 @@ class State2(AiManager):
         else:
             origin = self.calculateOrigin(json_dict['assets'])
             # execution order is a list of tuples (time, id)
-            execution_order = self.calculateExecutionOrder(json_dict['Tracks'], origin)
+            execution_order = self.calculateWhoTargeted(json_dict['Tracks'], json_dict['assets'])
+            execution_order = self.calculateProtectionOrder()
+
             output_message: OutputPb = OutputPb()
 
             execution_order = [enemy for enemy in execution_order if enemy[1] not in self.memory]
             # print(execution_order)
             # make sure its still sorted (it should be lol)
-            execution_order = sorted(execution_order, key=lambda x: x[0])
+            #execution_order = sorted(execution_order, key=lambda x: x[3])
 
             # This should fix your memory issue
             if len(self.memory) == 30:
@@ -109,8 +111,29 @@ class State2(AiManager):
             print("printing output message")
             print(output_message.actions)
 
-            self.calculateWhoTargeted(json_dict['Tracks'], json_dict['assets'])
+            #self.calculateWhoTargeted(json_dict['Tracks'], json_dict['assets'])
+            #self.calculateProtectionOrder()
             return output_message
+
+
+    def calculateProtectionOrder(self):
+        executionOrder = []
+
+        #sort by HVU
+        for target in self.distanceList:
+            if 'HVU' in target[0]:
+                executionOrder.append(target)
+                #self.memory.append(target[1])
+         #sort by lowest health ship
+
+        self.distanceList = sorted(self.distanceList, key=lambda x: x[3])
+
+        for target in self.distanceList:
+            if 'HVU' not in self.distanceList:
+                executionOrder.append(target)
+                #self.memory.append(target[1])
+        return executionOrder
+
 
 
     def calculateWhoTargeted(self, missile_list, assets):
@@ -151,13 +174,16 @@ class State2(AiManager):
                     distance = abs(-1 * m * ship_x + ship_y - b) / math.sqrt(m ** 2 + 1)
 
                     add = True
+
                     for tuple in self.distanceList:
                         if asset['AssetName']==tuple[0] and missile['TrackId']==tuple[1]:
                             add = False
+
                     if add == True:
-                        self.distanceList.append((asset['AssetName'], missile['TrackId'],  distance))
+                        self.distanceList.append((asset['AssetName'], missile['TrackId'],  distance, asset['health']))
 
             self.distanceList = sorted(self.distanceList, key=lambda x: x[2])
+
 
 
 
