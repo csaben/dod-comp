@@ -1,5 +1,6 @@
 #Imports
 import math
+import this
 
 from PlannerProto_pb2 import ScenarioConcludedNotificationPb, \
     ScenarioInitializedNotificationPb  # Scenario start/end notifications
@@ -28,6 +29,7 @@ class State2(AiManager):
         self.filepath = self.get_next_filepath(self.directory, self.base_file)
         self.ifYouShootShutUp = []
         self.future_sight = []
+        self.distanceList = []
 
     # Is passed StatePb from Planner
     def receiveStatePb(self, msg: StatePb):
@@ -112,18 +114,64 @@ class State2(AiManager):
 
 
     def calculateWhoTargeted(self, missile_list, assets):
-        for asset in assets:
-            if asset['health'] == -1:
-                pass
-            else:
-                for missile in missile_list:
+        closestDistance = 100000
+        trackID = 0
+        #distanceList = []
+        for missile in missile_list:
+            #distanceList = []
+            for asset in assets:
+
+                if asset['health'] == -1:
+                    pass
+                else:
+
+
+
                     dist = math.sqrt((asset['PositionX'] - missile['PositionX']) ** 2 + (
-                                asset['PositionY'] - missile['PositionY']) ** 2)
+                    asset['PositionY'] - missile['PositionY']) ** 2)
                     magnitude = math.sqrt(missile['PositionX'] ** 2 + missile['PositionY'] ** 2)
-                    print("Distance "+str(dist))
-                    print("Magnitude "+str(magnitude))
-                    if dist <= magnitude:
-                        print(str(missile['TrackId']) + " will impact " + asset['AssetName'])
+                    print(f"Missile {missile['TrackId']} Position {missile['TrackId']} X {missile['PositionX']} Missile Y {missile['PositionY']}")
+                    print(f"Missile Velocity {missile['TrackId']} XV {missile['VelocityX']} Missile YV {missile['VelocityY']}")
+                    print(f"Ship {asset['AssetName']} is at {asset['PositionX']}, {asset['PositionY']}")
+
+                   # Given values
+                    missile_x = missile['PositionX']
+                    missile_y = missile['PositionY']
+                    missile_vx = missile['VelocityX']
+                    missile_vy = missile['VelocityY']
+
+                    ship_x = asset['PositionX']
+                    ship_y = asset['PositionY']
+
+                    # Calculate slope and intercept of missile trajectory
+                    m = missile_vy / missile_vx
+                    b = missile_y - m * missile_x
+
+                    # Calculate closest distance between missile trajectory and ship
+                    distance = abs(-1 * m * ship_x + ship_y - b) / math.sqrt(m ** 2 + 1)
+
+                    add = True
+                    for tuple in self.distanceList:
+                        if asset['AssetName']==tuple[0] and missile['TrackId']==tuple[1]:
+                            add = False
+                    if add == True:
+                        self.distanceList.append((asset['AssetName'], missile['TrackId'],  distance))
+
+            self.distanceList = sorted(self.distanceList, key=lambda x: x[2])
+
+
+
+        print(f"Targeted List: {self.distanceList}")
+
+
+
+        print(f"Closest Distance {self.distanceList[0]}")
+        print(f" will impact {asset['AssetName']}")
+
+
+
+
+
     def find_value(self, list_of_dicts, key1, value1, key2, target_id):
         """
         Find a value in a list of dictionaries that contain another list of dictionaries.
@@ -245,3 +293,7 @@ class State2(AiManager):
         #     f.write(json_str)
         # import sys
         # sys.exit()
+
+
+
+
