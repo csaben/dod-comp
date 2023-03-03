@@ -13,7 +13,7 @@ import PlannerProto_pb2
 import numpy as np
 import re
 import time
-
+import math
 
 class State(AiManager):
     # Constructor
@@ -75,12 +75,12 @@ class State(AiManager):
 
 
             execution_order = self.calculateExecutionOrder(json_dict['Tracks'], origin)
-            print(json_dict["Tracks"])
+            #print(json_dict["Tracks"])
             pattern=r":(\d+)"
             #make a memory of what you have shot at by parsing for "Chainshot_17>enemy_track:18"
             for track in json_dict["Tracks"]:
                 if track["ThreatRelationship"]=="Friendly":
-                    print(track["ThreatRelationship"])
+                    #print(track["ThreatRelationship"])
                     match = re.search(pattern, track["ThreatId"])
                     self.targeted_track_ids.append(int(match.group(1)))
             output_message: OutputPb = OutputPb()
@@ -114,13 +114,13 @@ class State(AiManager):
                 else:
                     self.ifYouShootShutUp = []
                     return output_message
-            print("printing execution order")
-            print(execution_order)
+            #print("printing execution order")
+            #print(execution_order)
             print("printing memory")
-            print(self.memory)
+            #print(self.memory)
             self.ifYouShootShutUp = []
-            print("printing output message")
-            print(output_message.actions)
+            #print("printing output message")
+            #print(output_message.actions)
             return output_message
 
     def find_value(self, list_of_dicts, key1, value1, key2, target_id):
@@ -159,33 +159,69 @@ class State(AiManager):
         # start over because its not working
         return self.find_value(assets, "health", -1, "Quantity", target_id)
         # '''
-        # (
-        # ship_action.AssetName = "Galleon HVU"
-        # ship_action.weapon = "Chainshot_System"
-        # )
-        # '''
-        # # print(assets)
-        # whosShooting = None
-        # for asset in assets:
-        #     if asset['health'] == -1:
-        #         pass
-        #     else:
-        #         time.sleep(.5)
-        #         for weapon in asset['weapons']:
-        #             if (weapon['WeaponState'] == 'Ready') and ("Quantity" in weapon.keys()) and (asset['AssetName']!="HVU_Galleon_0"):
-        #                 print(asset["AssetName"])
-        #                 if weapon["Quantity"] >3:
-        #                     # print(target_id)
-        #                     self.memory.append(target_id)
-        #                     print("memory: ", self.memory)
-        #
-        # # return "Cannon_System", "HVU_Galleon_0"
-        #                     return  weapon['SystemName'], asset['AssetName']
-        #                 else:
-        #                     pass
-        #
-        #             else:
-        #                 pass
+    def calculateProtectionOrder(self):
+        executionOrder = []
+
+        #sort by HVU
+        for target in self.distanceList:
+            if 'HVU' in target[0]:
+                executionOrder.append(target)
+                #self.memory.append(target[1])
+         #sort by lowest health ship
+
+        self.distanceList = sorted(self.distanceList, key=lambda x: x[3])
+
+        for target in self.distanceList:
+            if 'HVU' not in self.distanceList:
+                executionOrder.append(target)
+                #self.memory.append(target[1])
+        return executionOrder
+    def calculateWhoTargeted(self, missile_list, assets):
+        closestDistance = 100000
+        trackID = 0
+        #distanceList = []
+        for missile in missile_list:
+            #distanceList = []
+            for asset in assets:
+
+                if asset['health'] == -1:
+                    pass
+                else:
+                    dist = math.sqrt((asset['PositionX'] - missile['PositionX']) ** 2 + (
+                    asset['PositionY'] - missile['PositionY']) ** 2)
+                    magnitude = math.sqrt(missile['PositionX'] ** 2 + missile['PositionY'] ** 2)
+                    # print(f"Missile {missile['TrackId']} Position {missile['TrackId']} X {missile['PositionX']} Missile Y {missile['PositionY']}")
+                    # print(f"Missile Velocity {missile['TrackId']} XV {missile['VelocityX']} Missile YV {missile['VelocityY']}")
+                    # print(f"Ship {asset['AssetName']} is at {asset['PositionX']}, {asset['PositionY']}")
+
+                   # Given values
+                    missile_x = missile['PositionX']
+                    missile_y = missile['PositionY']
+                    missile_vx = missile['VelocityX']
+                    missile_vy = missile['VelocityY']
+
+                    ship_x = asset['PositionX']
+                    ship_y = asset['PositionY']
+
+                    # Calculate slope and intercept of missile trajectory
+                    m = missile_vy / missile_vx
+                    b = missile_y - m * missile_x
+
+                    # Calculate closest distance between missile trajectory and ship
+                    distance = abs(-1 * m * ship_x + ship_y - b) / math.sqrt(m ** 2 + 1)
+
+                    add = True
+
+                    for tuple in self.distanceList:
+                        if asset['AssetName']==tuple[0] and missile['TrackId']==tuple[1]:
+                            add = False
+
+                    if add == True:
+                        self.distanceList.append((asset['AssetName'], missile['TrackId'],  distance, asset['health']))
+
+            self.distanceList = sorted(self.distanceList, key=lambda x: x[2])
+
+
 
     @staticmethod
     def calculateExecutionOrder(missle_list, origin) -> list:  # of tuples
@@ -211,7 +247,7 @@ class State(AiManager):
 
                 # time to intercept
                 t = d / dv
-                print(missle)
+                #print(missle)
                 intercept_times.append((t, missle['TrackId']))
 
         return intercept_times#, key=lambda x: x[0]
