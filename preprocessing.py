@@ -72,7 +72,7 @@ def preprocess(game):
             t_id = [item for sublist in transposed for item in sublist]
 
             #we need to pad the list with -1's to make it 30 long
-            t_id = t_id + [-1] * (30 - len(t_id))
+            t_id = t_id + [-1] * (60 - len(t_id))
 
         else:
             #if you don't have tracks, then you don't have execution order
@@ -181,14 +181,16 @@ def preprocess(game):
         assert len(galleon_info)==5*13
         assert len(tracks)==2*30*12 #likely saving a Friendly track on top of 30 enemy tracks
         assert len(memory)==300
-        assert len(t_id)==30
+        print(len(t_id))
+        assert len(t_id)==60
+        print(t_id)
 
 
         #WE STILL NEED TO SAVE THE EXECUTION ORDER and TIME to be scraped later 
 
 
         #put into a tensor with following logic
-        state = torch.tensor([time, score, *hvu_info, *galleon_info, *tracks, *memory, *t_id
+        state = torch.tensor([time, score, *hvu_info, *galleon_info, *tracks, *memory, *t_id],
                              dtype=torch.float32).flatten()
 
         state = state.reshape(1, -1)
@@ -218,9 +220,9 @@ def preprocess(game):
         #append to parent tensor so we have (300,info_size)
         parent_tensor = torch.cat((parent_tensor, state), dim=0)
 
-    #sometimes games end early so we need to pad, (300, info_size) st info_size.size==1132 (with the labels)
+    #sometimes games end early so we need to pad, (300, info_size) st info_size.size==1132 (with the labels*2)
     if parent_tensor.shape[0]<300:
-        parent_tensor = torch.cat((parent_tensor, torch.zeros((300-parent_tensor.shape[0], 1132))), dim=0)
+        parent_tensor = torch.cat((parent_tensor, torch.zeros((300-parent_tensor.shape[0], 1162))), dim=0)
 
     print(parent_tensor.shape)
 
