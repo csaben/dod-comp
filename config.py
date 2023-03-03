@@ -9,6 +9,8 @@ library = {
     "Galleon_5" : 2,
     True:1,
     False:0,
+    "Hostile": 1,
+    "Friendly": 0,
     "Cannon_System": 3,
     "Chainshot_System": 4,
     "ENEMY_1": 1,
@@ -41,6 +43,6 @@ library = {
     "ENEMY_28": 1,
     "ENEMY_29": 1,
     "ENEMY_30": 1,
-    # "Ready": 1, we have to do string comparison its lost in sauce
+    "Ready": 1, #we have to do string comparison its lost in sauce
  
 }

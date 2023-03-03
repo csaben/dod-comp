@@ -9,6 +9,7 @@ from State import State
 import torch
 from utils import *
 import sys
+import hashlib
 
 from transformers.utils import logging
 logging.set_verbosity_info()
@@ -39,7 +40,8 @@ def save_pickle(data, directory, base_filename):
     directory = Path(directory)
     #remove the .json
     file_path = get_next_filepath(directory, base_filename)
-    file_path = file_path.replace(".json", ".pkl")
+    file_path = str(file_path).replace(".json", ".pkl")
+    # file_path = file_path[:-4] + ".pkl"
 
     # Save data to file
     with open(file_path, 'wb') as f:
@@ -47,202 +49,182 @@ def save_pickle(data, directory, base_filename):
 
 def preprocess(game):
     # Extract values from dictionary
-    #for g in game:
-    #    print(g)
-    #    sys.exit()
+
 
     #make a parent tensor
     parent_tensor = torch.tensor([], dtype=torch.float32)
     for data in game:
-        time = data.get("time")
+
+        # Extract Labels
+        #add execution order label
+        origin = State.calculateOrigin(data['assets'])
+        if 'Tracks' in data.keys():
+            #TODO (FIX THIS AND MAKE FRESH DATA):
+            #so here in the state.py calculateExecutionOrder we need to also check for the
+            # threat relationship prior to considering in our calculation
+            # if data["Tracks"]["ThreatRelationship"] == "Hostile"
+
+            #this filters out friendlies AFTER YOU FIX IT
+            execution_order = State.calculateExecutionOrder(data['Tracks'], origin)
+            #unpack you list of tuples [(a,b), (c,d),..] into [a,b,c,d,...]
+            transposed = zip(*execution_order)
+            #flatten the list
+            t_id = [item for sublist in transposed for item in sublist]
+
+            #we need to pad the list with -1's to make it 30 long
+            t_id = t_id + [-1] * (30 - len(t_id))
+
+        else:
+            #if you don't have tracks, then you don't have execution order
+            t_id = [-1] * 60 #i.e. no time and no ids 
 
         #grab all asset info IGNORE REFERENCE SHIP
         state={}
-        hvu_info=[] # (1, root=6 + Lle=9 + weapons=6) note that PositionZ==0 effectively
-        galleon_info=[]
+        hvu_info=[]     # (1, root=6 + Lle=3 + weapons=6) note that PositionZ==0 effectively
+        galleon_info=[] # 5x(1, root=4 + Lle=3 + weapons=6) note; pad for 5
+        tracks=[]       # 30x(1, root=3, Lle=3, posvos=6) note; pad for 30*2 (include friendlies, this is why your memory buffer keeps breaking)
+        hidden_state_info=[] #(1, memory=30, miscallaneous=270)
 
+        if "score" in data.keys():
+            score = data.get("score")
+        else:
+            score = 0
 
-        for asset in data:
+        time = data.get("time")
+
+        for asset in data["assets"]:
+
             #exclude the reference ship
-            if asset.get("AssetName")!="Galleon_REFERENCE_SHIP":
+            if asset.get("AssetName")=="Galleon_REFERENCE_SHIP":
+                pass
 
+            elif asset.get("isHVU"):
 
-            #no else needed
+                #get HVU info
+                hvu_info.append(library[asset.get("AssetName")])
+                hvu_info.append(library[asset.get("isHVU")])
+                hvu_info.append(asset.get("health"))
+                hvu_info.append(asset.get("PositionX"))
+                hvu_info.append(asset.get("PositionY"))
+                hvu_info.append(asset.get("PositionZ"))
+                hvu_info.append(asset.get("Lle")[0])
+                hvu_info.append(asset.get("Lle")[1])
+                hvu_info.append(asset.get("Lle")[2])
+                for weapon in asset.get("weapons"):
+                    hvu_info.append(library[weapon.get("SystemName")])
+                    if weapon.get("Quantity") is None:
+                        hvu_info.append(-1)
+                    else:
+                        hvu_info.append(weapon.get("Quantity"))
+                    hvu_info.append(library[weapon.get("WeaponState")]) #if error, add value to library
+            else:
+
+                #get galleon info
+                galleon_info.append(library[asset.get("AssetName")])
+                galleon_info.append(asset.get("health"))
+                galleon_info.append(asset.get("PositionX"))
+                galleon_info.append(asset.get("PositionY"))
+                galleon_info.append(asset.get("Lle")[0])
+                galleon_info.append(asset.get("Lle")[1])
+                galleon_info.append(asset.get("Lle")[2])
+                for weapon in asset.get("weapons"):
+                    galleon_info.append(library[weapon.get("SystemName")])
+                    if weapon.get("Quantity") is None:
+                        galleon_info.append(-1)
+                    else:
+                        galleon_info.append(weapon.get("Quantity"))
+                    galleon_info.append(library[weapon.get("WeaponState")])
 
         #grab all track info
+        for track in data.get("Tracks"):
+            tracks.append(track.get("TrackId"))
+            #handle when threat id is
+            # KeyError: 'Cannon_Ball_1>enemy_track:7'
+            if track.get("ThreatId") not in library.keys():
+                raw=track.get("ThreatId")
+                ids=list(np.array(TOKENIZER.encode(raw, add_special_tokens=False)).flatten())
+                encoding=int("".join([str(id_) for id_ in ids]))
+                encoding=encoding % 1e6
+                tracks.append(encoding)
+            else:
+                tracks.append(library[track.get("ThreatId")])
+            tracks.append(library[track.get("ThreatRelationship")])
+            tracks.append(track.get("Lle")[0])
+            tracks.append(track.get("Lle")[1])
+            tracks.append(track.get("Lle")[2])
+            tracks.append(track.get("PositionX"))
+            tracks.append(track.get("PositionY"))
+            tracks.append(track.get("PositionZ"))
+            tracks.append(track.get("VelocityX"))
+            tracks.append(track.get("VelocityY"))
+            tracks.append(track.get("VelocityZ"))
 
         #grab memory info
         memory = data.get("memory")
 
-        #PUT INTO A TENSOR WITH FOLLOWING LOGIC
+        # hvu_info=[]     # (1, root=6 + Lle=3 + weapons=6) note that PositionZ==0 effectively
+        # galleon_info=[] # 5x(1, root=4 + Lle=3 + weapons=6) note; pad for 5
+        # tracks=[]       # 30x(1, root=3, Lle=3, posvos=6) note; pad for 30
 
-        # #put each part of the data into a {key: [ 1d array of info ], ... }
-        # #then we unpack our dict into a tensor
-        # state = np.array([*state.values()]).flatten()
-        # #check dimension is (1,info_size)
-        # state = torch.tensor(state)
-        # #return
+        #pad galleon info
+        if len(galleon_info)<5*13:
+            galleon_info.extend([0]*(5*13-len(galleon_info)))
 
-'''
-put into json beautify for reference
+        #pad tracks (note tracks can include friendlies so 30*2 actually)
+        if len(tracks)<2*30*12:
+            tracks.extend([0]*(2*30*12-len(tracks)))
 
-{"time": 7.04, "assets": [{"AssetName": "Galleon_REFERENCE_SHIP", "health": -1, "Lle": [25.0, -85.0, 0.0]}, {"AssetName": "HVU_Galleon_0", "isHVU": true, "health": 4, "PositionX": -2090.7503700031953, "PositionY": -1912.9656896674192, "PositionZ": -9.313225746154785e-10, "Lle": [24.982794848101822, -85.02074343642636, -9.313225746154785e-10], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}, {"AssetName": "Galleon_0", "health": 4, "PositionX": 7990.763960490963, "PositionY": 762.3615578821006, "Lle": [25.006835064375593, -84.92070390431094, 0.0], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}, {"AssetName": "Galleon_1", "health": 4, "PositionX": 6957.581669786882, "PositionY": -6417.88484277356, "Lle": [24.942266662046222, -84.93099289933922, 0.0], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}, {"AssetName": "Galleon_2", "health": 4, "PositionX": 32.76703285792545, "PositionY": -20.605749014037492, "Lle": [24.999814687693693, -84.9996748559751, 0.0], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}, {"AssetName": "Galleon_3", "health": 4, "PositionX": -693.0984865226911, "PositionY": 10136.633202978932, "Lle": [25.091160774106736, -85.0068826702868, 0.0], "weapons": [{"SystemName": "Cannon_System", "Quantity": 2, "WeaponState": "Ready"}, {"SystemName": "Chainshot_System", "Quantity": 4, "WeaponState": "Ready"}]}], "Tracks": [{"TrackId": 7, "ThreatId": "ENEMY_29", "ThreatRelationship": "Hostile", "Lle": [25.40612367205538, -85.28340844850591, 616.3077166797593], "PositionX": -28466.1029544425, "PositionY": 45188.796130634626, "PositionZ": 616.3077166797593, "VelocityX": 427.2232954378035, "VelocityY": -536.8693627181444, "VelocityZ": 9.451500926583016}], "memory": [7]}
+        #pad hidden state info
+        if len(memory)<300:
+            memory.extend([0]*(300-len(memory)))
 
-'''
-
-
-
-
-
-    #USE BELOW AS REFERECNE
-    ######################################################################
-    for data in game:
-        #remove AssetName reference ship
-        data['assets'] = [asset for asset in data['assets'] if asset['AssetName'] !=
-                          'Galleon_REFERENCE_SHIP']
-
-        time = data['time']
-        try:
-            score = data['score']
-        except:
-            score = 0
+        assert len(galleon_info)==5*13
+        assert len(tracks)==2*30*12 #likely saving a Friendly track on top of 30 enemy tracks
+        assert len(memory)==300
+        assert len(t_id)==30
 
 
-        asset_names = []
-        healths = []
-        positions = []
-        lle = []
-        weapons_quantities = []
-        weapons_states = []
-
-        for asset in data['assets']:
-            asset_names.append(asset['AssetName'])
-            healths.append(asset['health'])
-            positions.append([asset['PositionX'], asset['PositionY']])
-            lle.append(asset['Lle'])
-
-            for weapon in asset['weapons']:
-                try:
-                    weapons_quantities.append(weapon['Quantity'])
-                except:
-                    weapons_quantities.append(0)
-                weapons_states.append(weapon['WeaponState'])
-
-        track_ids = []
-        threat_ids = []
-        threat_relationships = []
-        track_positions = []
-
-        #add execution order label
-        origin = State.calculateOrigin(data['assets'])
-        if 'Tracks' in data.keys():
-            execution_order = State.calculateExecutionOrder(data['Tracks'], origin)
-        else:
-            execution_order = [(-1,-1)] * 30
-            # print(execution_order)
-
-        try:
-            for track in data['Tracks']:
-                track_ids.append(track['TrackId'])
-                threat_ids.append(track['ThreatId'])
-                threat_relationships.append(track['ThreatRelationship'])
-                track_positions.append([track['PositionX'], track['PositionY']])
-        except:
-            pass
-
-        # Convert lists to numpy arrays
-        asset_names = asset_names[:5] + [0] * (5 - len(asset_names))
-        asset_names = np.array(asset_names)
-
-        healths = np.array(healths)
-        positions = np.array(positions)
-        lle = np.array(lle)
-        weapons_quantities = np.array(weapons_quantities)
-
-        track_ids = track_ids[:30] + [0] * (30 - len(track_ids))
-        track_ids = np.array(track_ids)
-
-        # print(track_positions)
-        track_positions = track_positions[:90] + [[0,0]] * (90 - len(track_positions))
-        # print(track_positions)
-        track_positions = np.array(track_positions)
-
-        # Query library to get numerical values for asset names and threat ids
-
-        #use tokenizer for when shots are being fired
-        converter = lambda x: int("".join(map(str, x))) / 1e45
-        asset_name_numbers = []
-        threat_id_numbers = []
-        for name in asset_names:
-            if name in library:
-                asset_name_numbers.append(library[name])
-            else:
-                name = converter(TOKENIZER.encode(name, add_special_tokens=False))
-                asset_name_numbers.append(name)
-
-        for threat in threat_ids:
-            if threat in library:
-                threat_id_numbers.append(library[threat])
-            else:
-                threat = converter(TOKENIZER.encode(threat, add_special_tokens=False))
-                threat_id_numbers.append(threat)
-
-        #parse execution order into a 1d array
-        # execution_order = np.array(execution_order).flatten()
-        # print(execution_order.shape)
-        # print()
-        #unpack the tuples in the execution order
-        execution_order = [item for sublist in execution_order for item in sublist]
+        #WE STILL NEED TO SAVE THE EXECUTION ORDER and TIME to be scraped later 
 
 
+        #put into a tensor with following logic
+        state = torch.tensor([time, score, *hvu_info, *galleon_info, *tracks, *memory, *t_id
+                             dtype=torch.float32).flatten()
 
-        # Create tensor
-        tensor = np.array([
-            time,
-            score,
-            *asset_name_numbers,
-            *healths,
-            *positions.flatten(),
-            *lle.flatten(),
-            *weapons_quantities,
-            *track_ids,
-            *threat_id_numbers,
-            *track_positions.flatten(),
-            *execution_order
-        ])
+        state = state.reshape(1, -1)
 
-        # Reshape tensor to desired shape
-        tensor = tensor.reshape(1, -1)
+        # In order to unpack label state[N,:-30] and of those 30,
+        # [time_missle_fastest, id_missle_fastest, ... ] , 
 
-        # Convert to pytorch tensor
-        tensor = torch.tensor(tensor, dtype=torch.float32)
+                              #sike
+                              #loss calculated after you do a
+                              # sorted(execution_order, lambda x: x[1]) and st the model call in
+                              # State.py looks like this:
+                              # execution_order = model(json_state) #sorted by ascending order of
+                              # id values
+                              # execution_order = sorted(execution_order, lambda x: x[0])
+        # use the time in order to calculate the loss
+        # use the id in order to 
 
+        #have a dictionary instantate {0:id, 1:id, 2:id, ... 29:id}
+        #model gives some (1,30) of times
+        #   
+            #we then use the ids associated with each index to 
 
 
+        print(parent_tensor.shape)
+        print(state.shape)
 
-        # print(tensor.shape)
-        #append tensor to parent tensor
-        try:
-            parent_tensor = torch.cat((parent_tensor, tensor), 0)
-        except:
-            pass
+        #append to parent tensor so we have (300,info_size)
+        parent_tensor = torch.cat((parent_tensor, state), dim=0)
 
-    # pad parent tensor to (n, 300)
-    # if parent_tensor.shape[0] < 300:
-    #     min = torch.zeros((300-parent_tensor.shape[0], parent_tensor.shape[1]), dtype=torch.float32)
-    #     parent_tensor = torch.cat((parent_tensor, min), 0)
+    #sometimes games end early so we need to pad, (300, info_size) st info_size.size==1132 (with the labels)
+    if parent_tensor.shape[0]<300:
+        parent_tensor = torch.cat((parent_tensor, torch.zeros((300-parent_tensor.shape[0], 1132))), dim=0)
 
     print(parent_tensor.shape)
-    # sys.exit()
 
     return parent_tensor
-    #index a tensor and see its execution order
-
-    #how to print out the label
-    # print(parent_tensor[0, -60:])
-    #should only have been thirty but we allowed exec order to be a tuple
-
-    #save to a pkl or return 
 
 
 if __name__ == '__main__':

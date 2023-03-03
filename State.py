@@ -79,7 +79,7 @@ class State(AiManager):
             execution_order = sorted(execution_order, key=lambda x: x[0])
 
             #This should fix your memory issue
-            if len(self.memory]) == 30:
+            if len(self.memory) == 30:
                 self.memory = []
                 self.ifYouShootShutUp = []
             
