@@ -23,6 +23,7 @@ class State(AiManager):
         self.base_file = "ttd_state.json"
         self.filepath = self.get_next_filepath(self.directory, self.base_file)
         self.ifYouShootShutUp=[]
+        self.future_sight=[]
 
 
    
@@ -77,9 +78,11 @@ class State(AiManager):
             #make sure its still sorted (it should be lol)
             execution_order = sorted(execution_order, key=lambda x: x[0])
 
-            if json_dict.get("time") > 130 and json_dict.get("time") <135:
-                self.memory=[]
-                self.ifYouShootShutUp=[]
+            #This should fix your memory issue
+            if len(self.memory]) == 30:
+                self.memory = []
+                self.ifYouShootShutUp = []
+            
             for missle in execution_order:
                 ship_action: ShipActionPb = ShipActionPb()
                 #set the target id to the missle id
