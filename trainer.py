@@ -2,99 +2,119 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from network import Encoder, Decoder, Seq2Seq
+from torch.utils.data import Dataset, DataLoader
 import sys
-
-# Hyperparameters
-input_size = 1162
-output_size = 30
-hidden_size = 256
-num_layers = 2
-learning_rate = 0.001
-batch_size = 32
-num_epochs = 10
-teacher_forcing_ratio = 0.5
-
-# Load data
 import pickle
 
-# Load the data from the .pkl file
-with open('./tensor_pkls/game_1.pkl', 'rb') as f:
-    data = pickle.load(f)
 
-# CONFUSING BECAUSE I EXPECT TO ALWAYS HAVE 60 LABELS at end of tensor slice but I only have 30
-labels = data[124, :]
-times_only = labels[::2]
-print(len(labels))
-print(labels)
-print(len(times_only))
-print(times_only)
-sys.exit()
-#pretend you parsed out your labels st x.shape=(100,1102) and y.shape=(100,62)
-# Split the data into training and validation sets
-"""REPLACE PSEUDOCODE WITH YOUR CODE"""
-"""
+# Define the dataset
+class MyDataset(Dataset):
+    def __init__(self, X, y):
+        self.X = X
+        self.y = y
 
-you have to split the last 30 elements of the (100,1162) tensor to get you X and y
+    def __len__(self):
+        return len(self.X)
 
-the X data is the (100,1102) tensor
-the y data is the (100,32) tensor
+    def __getitem__(self, idx):
+        return self.X[idx], self.y[idx]
 
-then you have to setup the dataloader to load the data in batches of 32
+# Define the model
+class Encoder(nn.Module):
+    def __init__(self):
+        super(Encoder, self).__init__()
+        self.conv1 = nn.Conv1d(in_channels=100, out_channels=64, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv1d(in_channels=64, out_channels=32, kernel_size=3, padding=1)
+        self.dropout = nn.Dropout(0.2)
+        self.batchnorm = nn.BatchNorm1d(num_features=32)
+        
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = self.dropout(x)
+        x = self.batchnorm(x)
+        return x
 
-and handle the validation sets
+class Decoder(nn.Module):
+    def __init__(self):
+        super(Decoder, self).__init__()
+        self.attention = nn.MultiheadAttention(embed_dim=32, num_heads=4)
+        self.dropout = nn.Dropout(0.2)
+        self.batchnorm = nn.BatchNorm1d(num_features=32)
+        self.fc = nn.Linear(in_features=32, out_features=30)
+        
+    def forward(self, x):
+        x, _ = self.attention(x, x, x)
+        x = self.dropout(x)
+        x = self.batchnorm(x)
+        x = self.fc(x)
+        return x
 
-"""
+class Seq2Seq(nn.Module):
+    def __init__(self):
+        super(Seq2Seq, self).__init__()
+        self.encoder = Encoder()
+        self.decoder = Decoder()
+        
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
 
-# Define the model, loss function, optimizer, and device
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# Define the train function
+def train(model, train_loader, optimizer, criterion, device):
+    model.train()
+    train_loss = 0
 
-encoder = Encoder(input_size, hidden_size, num_layers=num_layers)
-decoder = Decoder(hidden_size, output_size, num_layers=num_layers)
-model = Seq2Seq(encoder, decoder).to(device)
+    for X, y in train_loader:
+        X = X.to(device)
+        y = y.to(device)
 
-criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+        optimizer.zero_grad()
+        output = model(X)
+        loss = criterion(output, y)
+        loss.backward()
+        optimizer.step()
 
+        train_loss += loss.item()
 
-# Train the model
-best_val_loss = float('inf')
-for epoch in range(num_epochs):
-    running_loss = 0.0
-    for i, (inputs, labels) in enumerate(train_loader):
-        inputs = inputs.to(device)
-        labels = labels.to(device)
+    return train_loss / len(train_loader)
 
-        loss = train(model, optimizer, criterion, inputs, labels, teacher_forcing_ratio)
+def main():
 
-        running_loss += loss
+    # Load the data from the .pkl file
+    with open('./new_tensor_pkls/game_1.pkl', 'rb') as f:
+        data = pickle.load(f)
 
-    epoch_loss = running_loss / len(train_loader)
-    print(f'Epoch {epoch+1}/{num_epochs}, Loss: {epoch_loss:.4f}')
+    #IDS DONT MATTER ANYMORE
+    #for the first 100 dim
+    X = torch.unsqueeze(data[:100, :-60], 0)
+    # X = torch.unsqueeze(data[:, :-60], 0)
+    y = torch.unsqueeze(data[:, -60:-30], 0)
 
-    # Evaluate the model on the validation data
-    with torch.no_grad():
-        val_loss = 0.0
-        for i, (inputs, labels) in enumerate(val_loader):
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+    # Define the hyperparameters
+    batch_size = 10
+    num_epochs = 100
+    learning_rate = 0.001
 
-            outputs = model(inputs, labels[:, :-1], False)
+    # Define the device
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-            outputs = outputs.view(-1, output_size)
-            labels = labels[:, 1:].contiguous().view(-1)
+    dataset = MyDataset(X, y)
+    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
-            loss = criterion(outputs, labels.float())
-            val_loss += loss.item()
+    # Initialize the model
+    model = Seq2Seq().to(device)
 
-        val_loss /= len(val_loader)
+    # Define the loss function and optimizer
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            torch.save(model.state_dict(), 'model.pt')
+    # Train
+    for epoch in range(num_epochs):
+        train_loss = train(model, train_loader, optimizer, criterion, device)
+        print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {train_loss:.4f}')
+
+if  __name__ == '__main__':
+    main()
+

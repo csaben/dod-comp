@@ -33,7 +33,7 @@ def main():
             data = '['+data[:-1]+']'
             data = json.loads(data)
             data = preprocess(data)
-            save_pickle(data, './tensor_pkls/', 'game')
+            save_pickle(data, './new_tensor_pkls/', 'game')
 
 def save_pickle(data, directory, base_filename):
     # Get next available file path
@@ -66,17 +66,27 @@ def preprocess(game):
 
             #this filters out friendlies AFTER YOU FIX IT
             execution_order = State.calculateExecutionOrder(data['Tracks'], origin)
+            execution_order = sorted(execution_order, key=lambda x: x[1])
             #unpack you list of tuples [(a,b), (c,d),..] into [a,b,c,d,...]
             transposed = zip(*execution_order)
             #flatten the list
             t_id = [item for sublist in transposed for item in sublist]
+            #for sublist in transposed:
+                #for item in sublist:
+                    #t_id.append(item)
+                    #so if transposed = zip(*[(a,b), (c,d),..])
+                    #you get t_id = [a,c,,...b,d,...]
+
+
+            # print(t_id)
+            # sys.exit()
 
             #we need to pad the list with -1's to make it 30 long
-            t_id = t_id + [-1] * (60 - len(t_id))
+            t_id = t_id + [103] * (60 - len(t_id))
 
         else:
             #if you don't have tracks, then you don't have execution order
-            t_id = [-1] * 60 #i.e. no time and no ids 
+            t_id = [103] * 60 #i.e. no time and no ids 
 
         #grab all asset info IGNORE REFERENCE SHIP
         state={}
