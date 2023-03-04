@@ -29,7 +29,7 @@ class State2(AiManager):
         self.filepath = self.get_next_filepath(self.directory, self.base_file)
         self.ifYouShootShutUp = []
         self.future_sight = []
-        self.distanceList = []
+        self.targetedShips = {}
 
     # Is passed StatePb from Planner
     def receiveStatePb(self, msg: StatePb):
@@ -64,8 +64,8 @@ class State2(AiManager):
 
         # needs to make new file if file already tyhere
 
-        with open(self.filepath, "a") as file:
-            file.write(json.dumps(json_dict) + "\n")
+        #with open(self.filepath, "a") as file:
+        #   file.write(json.dumps(json_dict) + "\n")
 
         # idle
         if 'Tracks' not in json_dict:
@@ -75,30 +75,46 @@ class State2(AiManager):
         else:
             origin = self.calculateOrigin(json_dict['assets'])
             # execution order is a list of tuples (time, id)
-            execution_order = self.calculateWhoTargeted(json_dict['Tracks'], json_dict['assets'])
+            targets = self.calculateWhoTargeted(json_dict['Tracks'], json_dict['assets'])
+
+            #asset,
+            if len(targets) > 0:
+                print(f"dict: {self.targetedShips}")
+                for tuple in targets:
+                    if tuple[0] in self.targetedShips.keys():
+
+                        if tuple[1] not in self.targetedShips[tuple[0]]:
+                            self.targetedShips[tuple[0]].append(tuple[1])
+                        # asset, TrackId, asset health
+                    else:
+                        self.targetedShips.update({tuple[0]:[tuple[1]]})
+
+            print("targeted ships "+str(self.targetedShips))
             execution_order = self.calculateProtectionOrder()
+
 
             output_message: OutputPb = OutputPb()
 
-            execution_order = [enemy for enemy in execution_order if enemy[1] not in self.memory]
-            # print(execution_order)
-            # make sure its still sorted (it should be lol)
-            #execution_order = sorted(execution_order, key=lambda x: x[3])
-
-            # This should fix your memory issue
             if len(self.memory) == 30:
                 self.memory = []
                 self.ifYouShootShutUp = []
 
-            for missle in execution_order:
+            for targetId in execution_order:
                 ship_action: ShipActionPb = ShipActionPb()
                 # set the target id to the missle id
-                ship_action.TargetId = missle[1]
-                ship_action.weapon, ship_action.AssetName \
-                    = self.whoShootsFirst(json_dict['assets'], missle[1])
+                ship_action.TargetId = targetId
+                #ship_action.AssetName = "HVU_Galleon_0"
+                #ship_action.weapon = "Chainshot_System"
+                #output_message.actions.append(ship_action)
+
+                # ship, weapon, target
+                ship_action.AssetName, ship_action_weapon, ship_action.TargetId \
+                    = self.whoShootsFirst(json_dict['assets'], json_dict['Tracks'], targetId)
 
                 if ship_action.weapon != "":
                     output_message.actions.append(ship_action)
+
+
 
                 else:
                     self.ifYouShootShutUp = []
@@ -111,88 +127,81 @@ class State2(AiManager):
             print("printing output message")
             print(output_message.actions)
 
-            #self.calculateWhoTargeted(json_dict['Tracks'], json_dict['assets'])
-            #self.calculateProtectionOrder()
-            return output_message
+        return output_message
 
 
     def calculateProtectionOrder(self):
         executionOrder = []
 
         #sort by HVU
-        for target in self.distanceList:
-            if 'HVU' in target[0]:
-                executionOrder.append(target)
-                #self.memory.append(target[1])
-         #sort by lowest health ship
-
-        self.distanceList = sorted(self.distanceList, key=lambda x: x[3])
-
-        for target in self.distanceList:
-            if 'HVU' not in self.distanceList:
-                executionOrder.append(target)
-                #self.memory.append(target[1])
+        for targetedShip in self.targetedShips.keys():
+            if 'HVU' in targetedShip:
+                executionOrder.extend(self.targetedShips[targetedShip])
+        for targetedShip in self.targetedShips.keys():
+            if 'HVU' not in self.targetedShips:
+                executionOrder.extend(self.targetedShips[targetedShip])
         return executionOrder
 
 
 
     def calculateWhoTargeted(self, missile_list, assets):
-        closestDistance = 100000
-        trackID = 0
-        #distanceList = []
+
+        targets = []
+
         for missile in missile_list:
-            #distanceList = []
-            for asset in assets:
+            if '>' in missile['ThreatId']:
+                pass
+            else:
+                #distanceList = []
+                howClose = []
+                for asset in assets:
 
-                if asset['health'] == -1:
-                    pass
-                else:
-
-
-
-                    dist = math.sqrt((asset['PositionX'] - missile['PositionX']) ** 2 + (
-                    asset['PositionY'] - missile['PositionY']) ** 2)
-                    magnitude = math.sqrt(missile['PositionX'] ** 2 + missile['PositionY'] ** 2)
-                    print(f"Missile {missile['TrackId']} Position {missile['TrackId']} X {missile['PositionX']} Missile Y {missile['PositionY']}")
-                    print(f"Missile Velocity {missile['TrackId']} XV {missile['VelocityX']} Missile YV {missile['VelocityY']}")
-                    print(f"Ship {asset['AssetName']} is at {asset['PositionX']}, {asset['PositionY']}")
-
-                   # Given values
-                    missile_x = missile['PositionX']
-                    missile_y = missile['PositionY']
-                    missile_vx = missile['VelocityX']
-                    missile_vy = missile['VelocityY']
-
-                    ship_x = asset['PositionX']
-                    ship_y = asset['PositionY']
-
-                    # Calculate slope and intercept of missile trajectory
-                    m = missile_vy / missile_vx
-                    b = missile_y - m * missile_x
-
-                    # Calculate closest distance between missile trajectory and ship
-                    distance = abs(-1 * m * ship_x + ship_y - b) / math.sqrt(m ** 2 + 1)
-
-                    add = True
-
-                    for tuple in self.distanceList:
-                        if asset['AssetName']==tuple[0] and missile['TrackId']==tuple[1]:
-                            add = False
-
-                    if add == True:
-                        self.distanceList.append((asset['AssetName'], missile['TrackId'],  distance, asset['health']))
-
-            self.distanceList = sorted(self.distanceList, key=lambda x: x[2])
+                    if asset['health'] == -1:
+                        pass
+                    else:
 
 
 
 
-        print(f"Targeted List: {self.distanceList}")
+                        print(f"Missile {missile['TrackId']} Position {missile['TrackId']} X {missile['PositionX']} Missile Y {missile['PositionY']}")
+                        print(f"Missile Velocity {missile['TrackId']} XV {missile['VelocityX']} Missile YV {missile['VelocityY']}")
+                        print(f"Ship {asset['AssetName']} is at {asset['PositionX']}, {asset['PositionY']}")
+
+                        missile_x = missile['PositionX']
+                        missile_y = missile['PositionY']
+                        missile_vx = missile['VelocityX']
+                        missile_vy = missile['VelocityY']
+
+                        ship_x = asset['PositionX']
+                        ship_y = asset['PositionY']
+
+                        # Calculate slope and intercept of missile trajectory
+                        m = missile_vy / missile_vx
+                        b = missile_y - m * missile_x
+
+                        # Calculate closest distance between missile trajectory and ship
+                        distance = abs(-1 * m * ship_x + ship_y - b) / math.sqrt(m ** 2 + 1)
+                        howClose.append((asset['AssetName'], missile['TrackId'], asset['health'], distance))
+
+                    #sort how close ship comes to particular missile
+                howClose = sorted(howClose, key=lambda x: x[3])
+
+                targetedShip = assets[0]['AssetName'] = 'HVU_Galleon_0'
+                if (len(howClose)>0):
+                    # asset, TrackId, asset health
+                    targetedShip = [howClose[0][0], howClose[0][1], howClose[0][2]]
+
+                targets.append(targetedShip)
 
 
 
-        print(f"Closest Distance {self.distanceList[0]}")
-        print(f" will impact {asset['AssetName']}")
+
+            #print(f"Targeted List: {targets}")
+        return targets
+
+
+
+
 
 
 
@@ -228,37 +237,47 @@ class State2(AiManager):
                         return withWhat, whosShooting
         return "", ""
 
-    def whoShootsFirst(self, assets, target_id) -> tuple:
-        # start over because its not working
+    def whoShootsFirst(self, assets, missiles, target_id) -> tuple:
+        target_weapon_pair = []
+        shootOrder = []
+
+        for asset in assets:
+
+            if "Chainshot_System" in asset['weapons'][0]['SystemName']:
+                    closest = 100000
+                    for missile in missiles:
+                        x1 = asset['PositionX']
+                        y1 = asset['PositionY']
+                        x2 = missile['PositionX']
+                        y2 = missile['PositionY']
+
+                        d = math.sqrt((x1-x2)**2+(y1-y2)**2)
+                        if d < closest:
+                            closest = d
+                            target_weapon_pair = [(asset['AssetName'], "Chainshot_System", missile['TargetId'])]
+                    shootOrder.append(target_weapon_pair)
+                elif "Cannon_System" in asset['weapons'][0]['SystemName']:
+                    closest = 100000
+                    for missile in missiles:
+                        x1 = asset['PositionX']
+                        y1 = asset['PositionY']
+                        x2 = missile['PositionX']
+                        y2 = missile['PositionY']
+
+                        d = math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+                        if d < closest:
+                            closest = d
+                            target_weapon_pair = [(asset['AssetName'], "Cannon_System", missile['TargetId'])]
+                    shootOrder.append(target_weapon_pair)
+        return shootOrder
+
+
+
+
+
+
         return self.find_value(assets, "health", -1, "Quantity", target_id)
-        # '''
-        # (
-        # ship_action.AssetName = "Galleon HVU"
-        # ship_action.weapon = "Chainshot_System"
-        # )
-        # '''
-        # # print(assets)
-        # whosShooting = None
-        # for asset in assets:
-        #     if asset['health'] == -1:
-        #         pass
-        #     else:
-        #         time.sleep(.5)
-        #         for weapon in asset['weapons']:
-        #             if (weapon['WeaponState'] == 'Ready') and ("Quantity" in weapon.keys()) and (asset['AssetName']!="HVU_Galleon_0"):
-        #                 print(asset["AssetName"])
-        #                 if weapon["Quantity"] >3:
-        #                     # print(target_id)
-        #                     self.memory.append(target_id)
-        #                     print("memory: ", self.memory)
-        #
-        # # return "Cannon_System", "HVU_Galleon_0"
-        #                     return  weapon['SystemName'], asset['AssetName']
-        #                 else:
-        #                     pass
-        #
-        #             else:
-        #                 pass
+
 
     @staticmethod
     def calculateExecutionOrder(missle_list, origin) -> list:  # of tuples
@@ -266,12 +285,13 @@ class State2(AiManager):
         intercept_times = []
         # get position, divide by speed, sort by lowest time to intercept
         # exclude elevation for now
+
+
+
         for missle in missle_list:
             if ">" in missle.get("ThreatId"):
                 pass
             else:
-
-                # easier to read
                 x = missle['PositionX']
                 y = missle['PositionY']
                 vx = missle['VelocityX']
