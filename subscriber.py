@@ -61,8 +61,8 @@ class Subscriber:
             msgType = serialized.Header.ContentType
             print(f"Received a message of type: {msgType}")
             #this will screw up other stuff
-            if msgType == "ScenarioConcludedNotificationPb":
-                self.ai_manager.filepath = self.ai_manager.get_next_filepath(self.ai_manager.directory, self.ai_manager.base_file)
+            # if msgType == "ScenarioConcludedNotificationPb":
+            #     self.ai_manager.filepath = self.ai_manager.get_next_filepath(self.ai_manager.directory, self.ai_manager.base_file)
 
             if hasattr(proto_messages, msgType):
                 # ai_manager is an instance of AiManager which can be your ai

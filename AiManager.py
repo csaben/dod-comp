@@ -15,7 +15,6 @@ from publisher import Publisher
 # The second part of the function name is the type of proto message it wants to receive, thus proto
 # message names are also protected
 class AiManager:
-
     # Constructor
     def __init__(self, publisher:Publisher):
         print("Constructing AI Manager")
