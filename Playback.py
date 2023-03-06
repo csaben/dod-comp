@@ -25,9 +25,15 @@ def numericalSort(value):
     return parts
 
 def main(strategy:str, state:str):
+
+    #print all states in a game
     if state == "all":
         for file in sorted(glob.glob(f"sample_games/{strategy}/*.bin"), key=numericalSort):
             print(f"Current File Being Processed is: {file}")
+            with open(file, "rb") as f:
+                msg = PlannerProto_pb2.StatePb()
+                msg.ParseFromString(f.read())
+                print(msg)
             #print each msg from that game continuously
     else:    
         state = int(state)
