@@ -32,7 +32,7 @@ def main(strategy:str, state:str):
     else:    
         state = int(state)
         with open(f"sample_games/{strategy}/state_pb_{state}.bin", "rb") as f:
-            msg = PlannerProto_pb2.Message()
+            msg = PlannerProto_pb2.StatePb()
             msg.ParseFromString(f.read())
             print(msg)
 
