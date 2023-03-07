@@ -1,0 +1,11 @@
+Friendly missles
+ Cannon: A high speed missile system
+– Speed: 972m/s
+ Chainshot: A low speed missile system
+– Speed: 343m/s
+
+Enemy missles
+– Buccaneer V1: Speed = 686m/s | Cruising Altitude = 1000m
+– Buccaneer V2: Speed = 686m/s | Cruising Altitude = 20m
+– Privateer V1: Speed = 292m/s | Cruising Altitude = 1000m
+– Privateer V2: Speed = 292m/s | Cruising Altitude = 20m

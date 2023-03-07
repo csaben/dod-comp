@@ -26,8 +26,8 @@ def main(strategy):
     #Initialize AiManager
     # ai_manager = AiManager(publisher)
     # ai_manager = Toy(publisher)
-    # ai_manager = practice(publisher)
-    ai_manager = LocalGameGenerator(publisher, strategy)
+    ai_manager = practice(publisher)
+    # ai_manager = LocalGameGenerator(publisher, strategy)
     # ai_manager = heuristic_agent(publisher)
 
     #Register subscriber functions of Ai manager and begin listening for messages
