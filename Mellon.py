@@ -119,7 +119,7 @@ class Mellon(AiManager):
         for track in trackMap:
             if track.ThreatRelationship == "Hostile":
                 degreeOfParallelism = []
-                for asset in assetMap:
+                for asset in assetMap: #need to not include reference ship
                     def unit_vector(vector):
                         """ Returns the unit vector of the vector.  """
                         return vector / np.linalg.norm(vector)
