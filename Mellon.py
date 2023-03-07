@@ -25,6 +25,7 @@ class Mellon(AiManager):
     def receiveStatePb(self, msg: StatePb):
         # self.printStateAsDict(msg)
         output_message: OutputPb = OutputPb()
+        outpt_message = self.act(msg)
         self.ai_pub.publish(output_message)
 
     # This method/message is used to notify of new scenarios/runs
@@ -36,9 +37,11 @@ class Mellon(AiManager):
         print("Ended Run: " + str(msg.sessionId) + " with score: " + str(msg.score))
 
     # Example function for building OutputPbs, returns OutputPb
-    def generateState(self, msg: StatePb):
+    def act(self, msg: StatePb):
         # idle
         if msg.tracks:
+            # spawn emptyy output message
+            output_message: OutputPb = OutputPb()
             # collect convenient mapping info
             trackMap = self.trackMap(msg)# def assetMap(self, msg: StatePb) -> AssetPb:
             assetMap = self.assetMap(msg)# def trackMap(self, msg: StatePb)-> TrackPb:
@@ -62,6 +65,11 @@ class Mellon(AiManager):
 
     # def timeToDie(self, track: TrackPb, asset: AssetPb) -> float:
             return output_message
+
+    def Inventory(self, asset: AssetPb) -> dict:
+        # doesn't need to be dict, should make taking inventory of
+        # available weapons trivial
+        pass
 
 
     def simulateRedirectedMissle(self, missle, assetMap, time):
@@ -105,6 +113,7 @@ class Mellon(AiManager):
         return assetMap
 
     def targetedAssets(self, msg: StatePb, trackMap: dict, assetMap: dict) -> dict:
+        #https://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python#:~:text=Here%20is%20a%20function%20which%20will%20correctly%20handle%20these%20cases%3A
         #linear algebra, if a the vector of the x,y of asset and x,y of missle are parallel, then the missle is headed towards the asset
         missleLikelihoods={}
         for track in trackMap:
