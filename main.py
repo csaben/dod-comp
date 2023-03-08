@@ -7,10 +7,11 @@ from publisher import Publisher
 from subscriber import Subscriber
 from AiManager import AiManager
 from Ai import heuristic_agent
-from Toy import Toy
+# from Toy import Toy
 from State import State
-from buff import practice
+# from buff import practice
 from LocalGameGenerator import LocalGameGenerator
+from Mellon import Mellon
 
 import fire
 
@@ -26,9 +27,12 @@ def main(strategy):
     #Initialize AiManager
     # ai_manager = AiManager(publisher)
     # ai_manager = Toy(publisher)
-    ai_manager = practice(publisher)
+    # ai_manager = practice(publisher)
     # ai_manager = LocalGameGenerator(publisher, strategy)
+    ai_manager = Mellon(publisher)
+
     # ai_manager = heuristic_agent(publisher)
+    # ai_manager = Mellon(publisher)
 
     #Register subscriber functions of Ai manager and begin listening for messages
     subscriber.registerSubscribers(ai_manager)

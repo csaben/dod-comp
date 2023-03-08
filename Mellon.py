@@ -14,6 +14,7 @@ import numpy as np
 import re
 import time
 import math
+import sys
 
 class Mellon(AiManager):
     # Constructor
@@ -25,7 +26,7 @@ class Mellon(AiManager):
     def receiveStatePb(self, msg: StatePb):
         # self.printStateAsDict(msg)
         output_message: OutputPb = OutputPb()
-        outpt_message = self.act(msg)
+        output_message = self.act(msg)
         self.ai_pub.publish(output_message)
 
     # This method/message is used to notify of new scenarios/runs
@@ -39,15 +40,46 @@ class Mellon(AiManager):
     # Example function for building OutputPbs, returns OutputPb
     def act(self, msg: StatePb):
         # idle
-        if msg.tracks:
+        if msg.Tracks:
             # spawn emptyy output message
-            output_message: OutputPb = OutputPb()
             # collect convenient mapping info
             trackMap = self.trackMap(msg)# def assetMap(self, msg: StatePb) -> AssetPb:
             assetMap = self.assetMap(msg)# def trackMap(self, msg: StatePb)-> TrackPb:
 
             # grab the likely targeted assets at this time
             targetedAssets = self.targetedAssets(msg, trackMap, assetMap)# def targetedAsset(self, msg: StatePb, trackMap: dict, assetMap: dict) -> dict:
+            #now we have the following DS
+            #[ (angle_between(angleAsset, angleMissle), asset, track, self.timeToDie(track, asset)), ...]
+
+            #TEST AND SEE IN GUI IF WE ARE CORRECTLY DECIDING ON TARGETS
+            #TRACKID7 ENEMY5
+            if msg.time>5 and msg.time<12:
+                # ship_action.TargetId = missle[1]
+                # ship_action.weapon
+                # ship_action.AssetName 
+                # output_message.actions.append(ship_action)
+                output_message: OutputPb = OutputPb()
+                ship_action : ShipActionPb = ShipActionPb()
+                ship_action.TargetId = 7
+                # shipAction.weapon = "Cannon_System"
+                ship_action.AssetName = "Galleon_1"
+                ship_action.weapon = "Chainshot_System"
+                output_message.actions.append(ship_action)
+                return output_message 
+                # for target_id, tuple_asset_info in targetedAssets.items():
+                #     if tuple_asset_info[2] == "HVU_Galleon_5":
+                #         # if there are targeted assets, then we need to act
+                #         shipAction : ShipActionPb = ShipActionPb()
+                #         # just assume you have ammo in galleon 0 and shoot it
+                #         shipAction.AssetName = "HVU_Galleon_5"
+                #         shipAction.weapon = "Cannon_System"
+                #         shipAction.TargetId = tuple_asset_info[2].TrackId
+                #         output_message.actions.append(ship_action)
+                #     else:
+                #         pass
+            else:
+                output_message: OutputPb = OutputPb()
+                return output_message
 
             # determine if any action is needed currently (define a threat threshold, ties into
             # custom policy)
@@ -56,7 +88,6 @@ class Mellon(AiManager):
             # possible, and fire when angle is effectively 0)
 
 
-            return output_message
         else:
             print("idle")
             output_message: OutputPb = OutputPb()
@@ -108,7 +139,7 @@ class Mellon(AiManager):
 
     def assetMap(self, msg: StatePb) -> AssetPb:
         assetMap, weaponMap = {}, {}
-        for asset in msg.Assets:
+        for asset in msg.assets:
             assetMap[asset.AssetName] = asset
         return assetMap
 
@@ -116,30 +147,54 @@ class Mellon(AiManager):
         #https://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python#:~:text=Here%20is%20a%20function%20which%20will%20correctly%20handle%20these%20cases%3A
         #linear algebra, if a the vector of the x,y of asset and x,y of missle are parallel, then the missle is headed towards the asset
         missleLikelihoods={}
-        for track in trackMap:
+        #iterate through each track in the dict (TrackId is repeated information and used only for key)
+        for track_id, track in trackMap.items():
             if track.ThreatRelationship == "Hostile":
                 degreeOfParallelism = []
-                for asset in assetMap: #need to not include reference ship
-                    def unit_vector(vector):
-                        """ Returns the unit vector of the vector.  """
-                        return vector / np.linalg.norm(vector)
+                for asset_name, asset in assetMap.items(): #need to not include reference ship
+                    if asset.AssetName !="Galleon_REFERENCE_SHIP":
+                        def unit_vector(vector):
+                            """ Returns the unit vector of the vector.  """
+                            return vector / np.linalg.norm(vector)
 
-                    def angle_between(v1, v2):
-                        """ Returns the angle in radians between vectors 'v1' and 'v2'"""
-                        v1_u = unit_vector(v1)
-                        v2_u = unit_vector(v2)
-                        return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
-                        # >>> angle_between((1, 0, 0), (1, 0, 0)) == 0.0
+                        def angle_between(v1, v2):
+                            """ Returns the angle in radians between vectors 'v1' and 'v2'"""
+                            v1_u = unit_vector(v1)
+                            v2_u = unit_vector(v2)
+                            #np.arcos must receieve a value between -1 and 1, so we clip the value
+                            angle = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+                            # >>> an gle_between((1, 0, 0), (1, 0, 0)) == 0.0
 
-                    #calculate the angle between each asset and a given missle
-                    unitAsset = unit_vector(asset.PositionX, asset.PositionY)
-                    unitMissle = unit_vector(track.PositionX, track.PositionY)
-                    #store all information pertinent about a missle that will potentially hit you
-                    # (speed up if you calculate time to die later)
-                    degreeOfParallelism.append((angle_between(unitAsset, unitMissle), asset,
-                                                track, self.timeToDie(track, asset)))
+                            # we sort by smallest so using unit circle we make our angle between 0 and pi/2
+                            if angle>0 and angle<np.pi/2:
+                                angle = angle
+                            elif angle>np.pi/2 and angle<np.pi:
+                                angle = np.pi-angle
+                            elif angle>np.pi and angle<3*np.pi/2:
+                                angle =  angle-np.pi
+                            elif angle>3*np.pi/2 and angle<2*np.pi:
+                                angle = 2*np.pi-angle
+                            elif angle==0:
+                                angle = 0
+                            elif angle==np.pi:
+                                angle = np.pi
+                            else:
+                                sys.exit("Error in angle_between function")
+                            return angle
+
+                        #calculate the angle between each asset and a given missle
+                        v1 = (asset.PositionX, asset.PositionY, 0)
+                        v2 = (track.PositionX, track.PositionY, 0)
+                        #store all information pertinent about a missle that will potentially hit you
+                        # (speed up if you calculate time to die later)
+                        degreeOfParallelism.append((angle_between(v1, v2), asset,
+                                                    track, self.timeToDie(track, asset)))
+
                 #get the smallest angle to be the most likely target
-                degreeOfParallelism = sorted(degreeOfParallelism, key=lambda x: x[0])
+                if len(degreeOfParallelism) > 0:
+                    degreeOfParallelism = sorted(degreeOfParallelism, key=lambda x: x[0])
+                else:
+                    return None
                 missleLikelihoods[track.TrackId] = degreeOfParallelism[0]
         return missleLikelihoods
 
