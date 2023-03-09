@@ -22,11 +22,22 @@ class Mellon(AiManager):
     def __init__(self, publisher: Publisher):
         print("Constructing AI Manager")
         self.ai_pub = publisher
-        self.targetedAssetsList = []
+        self.targetedAssetsList = {}
+        #if you continuously update your targeted assets with all of the new state info
+        #you will probably begin shooting twice at the same missles; you should probably
+        #double check new targeted assets with trackids aren't already in firing (TODO)
+        self.inventory = []
+        self.firing = []
 
     # Is passed StatePb from Planner
     def receiveStatePb(self, msg: StatePb):
         # self.printStateAsDict(msg)
+
+        #update inventory
+        for asset in msg.assets:
+            if "REFERENCE" not in asset.AssetName:
+                self.updateInventory(asset)
+
         output_message: OutputPb = OutputPb()
         output_message = self.act(msg)
         self.ai_pub.publish(output_message)
@@ -37,12 +48,8 @@ class Mellon(AiManager):
 
     # This method/message is used to nofify that a scenario/run has ended
     def receiveScenarioConcludedNotificationPb(self, msg: ScenarioConcludedNotificationPb):
-            #TEST AND SEE IN GUI IF WE ARE CORRECTLY DECIDING ON TARGETS (seems ok)
-            #TRACKID7 ENEMY5
-            # if msg.time>5 and msg.time<12:
-            #     output_message: OutputPb = OutputPb()
-            #     ship_action.weapon = "Chainshot_System"
-            #     return output_message 
+        self.inventory = []
+        self.targetedAssetsList = {}
         print("Ended Run: " + str(msg.sessionId) + " with score: " + str(msg.score))
 
     # Example function for building OutputPbs, returns OutputPb
@@ -65,26 +72,56 @@ class Mellon(AiManager):
                 ship_action : ShipActionPb = ShipActionPb()
                 ship_action.TargetId = 7
                 ship_action.weapon = "Cannon_System"
-                ship_action.AssetName = "Galleon_2"
+                ship_action.AssetName = "Galleon_4"
                 output_message.actions.append(ship_action)
                 # print(ship_action)
                 # print(output_message)
                 return output_message
 
-            # def hvu_heap
+            # def hvu_heap(self, msg: StatePb, trackMap: dict, assetMap: dict) -> dict:
+            hvu_heap = self.hvu_heap(msg, trackMap, assetMap)
+            # BACK IN THE ACT FUNCTION
+            if len(hvu_heap)==0:
+                #go on to galleon heap
+                pass
+            else:
+                # given whats left of the heap, decide if given how many galleons we have if strategy
+                # needs to hard switch to protect all galleon's with closest strategy to maximize points
+                # i.e. do a max point scenario calculation for current state and compare with hard switch
+                # def pointsCalulation  X 2
+                # def pointsCalculation(policy="hvu")
+                # def pointsCalculation(policy="galleon")
 
-            # def pointsCalulation  X 2
+                #handle score calculations and decide if we are updating policy and switching to
+                #shoot closest (in this case I'm thinking we would just clear the shooting instance
+                #variable and pass an un-mutilated current state inventory to heapGalleons to use)
 
-            # def galleon_heap
+                #if you switch strategy, just clear the ship_actions instance variable + pass an
+                # un-mutilated current state inventory to heapGalleons to use. update a policy instance
+                # variable such that next state we automatically jump to the heapGalleons strategy
+                # (TODO)
 
+                # def galleon_heap
+                pass
+
+            # if you don't switch strategy, still shoot with inventory that can't possibly help
+            # remaining hvu's to protect the heap of galleons
+
+            # def galleon_heap_with_unhelpful_defenders (make a 2nd inventory fn function to save
+            # missles that just can't make it to save priority targets to be accessible for galleon
+            # a different galleon heap low priority function) TODO
+            
+            #now we enter into the firing phase
+            #[(assetName, systemName, targetId, scheduledFireTime),..]
+            for wta in self.firing:
+                if wta[-1] <=msg.time:
+                    ship_action : ShipActionPb = ShipActionPb()
+                    ship_action.TargetId = wta[2]
+                    ship_action.weapon = wta[1]
+                    ship_action.AssetName = wta[0]
+                    output_message.actions.append(ship_action)
             
             return output_message
-
-            # determine if any action is needed currently (define a threat threshold, ties into
-            # custom policy)
-
-            # generate an output message based on a custom policy (protect HUV, wait as long as
-            # possible, and fire when angle is effectively 0)
 
 
         else:
@@ -120,40 +157,36 @@ class Mellon(AiManager):
         # fixed when we overwrite our targetedAssets info with the redirected info)
 
         ttd_based = []
-        for asset in tent:
+        for asset in health_based:
             # for each occurence of the asset in targetedAssets, add to unsorted arry to be sorted
             # time to die prior to adding to the heap
-            for tup_asset in self.targetedAssets:
-                if tup_asset[0].AssetName == asset.AssetName:
+            for key, tup_asset in self.targetedAssetsList.items():
+                if tup_asset[1].AssetName == asset[0].AssetName:
                     #[ (angle_between(angleAsset, angleMissle), asset, track, self.timeToDie(track, asset)), ...]
-                    ttd_based.append((asset, tup_asset[3]))
+                    ttd_based.append((asset[0], tup_asset[3], tup_asset[2], tup_asset))
+                    #[(asset, ttd),..]
             ttd_based = sorted(ttd_based, key=lambda x: x[1])
 
-        # check if saveable given current inventory for each hvu in order  (loop)
-        # def saveable
-        # if returned false then pop the hvu from the heap (i dont really see the need to hold onto
-        # the heap variable though if I recalculate at each step)
+        for ttd_asset in ttd_based:
+            #[(asset, ttd, targetid),..]
+            # check if saveable given current inventory for each hvu in order  (loop)
+            # def saveable
+            # if returned false then pop the hvu from the heap (i dont really see the need to hold onto
+            # the heap variable though if I recalculate at each step)
+            if self.savable(ttd_asset[0],ttd_asset[1], msg.time, ttd_asset[2], ttd_asset[3]):
+                continue
+            else:
+                #pop the asset from the heap
+                ttd_based.remove(ttd_asset)
+                #calculate redirected missle (TODO)
+                # if not saveable, calculate the simulateRedirectedMissle and update targetedAssets/ create
+                # a special instance variable that stores the redirected missles and automatically updates
+                # the original instance variable after every new state message is received
 
-        #assign each hvu a tuple of (shipGunInfo+TrackId) (unless this is done in the saveable function)
-        # def assignWeapons
-
-        # return the hvuheap
+        return sorted(ttd_based, key=lambda x: x[1])
+        # return the "hvuheap"
+        # return heapq.heapify(ttd_based)
         
-        # BACK IN THE ACT FUNCTION
-
-        # given whats left of the heap, decide if given how many galleons we have if strategy
-        # needs to hard switch to protect all galleon's with closest strategy to maximize points
-        # i.e. do a max point scenario calculation for current state and compare with hard switch
-        # def pointsCalculation(policy="hvu")
-        # def pointsCalculation(policy="galleon")
-
-        #if you switch strategy, just clear the ship_actions instance variable + pass an
-        # un-mutilated current state inventory to heapGalleons to use. update a policy instance
-        # variable such that next state we automatically jump to the heapGalleons strategy
-
-        # if you don't switch strategy, still shoot with inventory that can't possibly help
-        # remaining hvu's to protect the heap of galleons
-        pass
 
     def heapGalleons(self, msg: StatePb, trackMap: dict, assetMap: dict) -> dict:
         # sort by health, sort by time to die (pretty similar to hvu_heap)
@@ -177,28 +210,65 @@ class Mellon(AiManager):
 
         pass
 
-    def savable(self, asset: AssetPb, track: TrackPb, time: float) -> bool:
-        # def inventory()
-
+    def savable(self, asset: AssetPb, ttd: float, time: float, targetid: int, targetedAsset:tuple) -> bool:
+        #[(assetName, systemName, Quantity, (
+        x,y = asset.PositionX, asset.PositionY
+        # calculate if any of the weaponn systems in inventory are capable
+        #make a capable of protecting list and right before shooting everything compare
+        # bw all other things that need to be shot for to be protected, but for now just
+        # assign locally and pop from inventory (choose to shoot with whichever will
+        # barely make it)
+        capable_defenders=[]
+        # weapon_info =[(asset.AssetName, weapon.SystemName, weapon.Quantity, (asset.PositionX, asset.PositionY),ammo[weapon.SystemName])),..]
         # for all occurences of the asset in targetedAssets check if we have enough quality ammo now and
         # later to save (if ttd of asset is less then ttd of defending missles == quality ammo)
+        for weapon_info in self.inventory:
+            # calculate potential defense ttd
+            x1,y1 = weapon_info[3]
+            v = weapon_info[-1]
 
-        # if not saveable, calculate the simulateRedirectedMissle and update targetedAssets/ create
-        # a special instance variable that stores the redirected missles and automatically updates
-        # the original instance variable after every new state message is received
+            # distance eqn
+            d = np.sqrt((x1 - x) ** 2 + (y1 - y) ** 2)
+            # time to intercept
+            t = d / v
 
+            #if my missle could hit my own ship faster than I use i consider it fast enough
+            if t<ttd:
+                capable_defenders.append((weapon_info,t))
+
+        if len(capable_defenders)>0:
+            #reverse =True; get the furthest away missle
+            shooter= sorted(capable_defenders, key=lambda x: x[1], reverse=True)[0]
+            #update inventory
+            self.inventory.remove(shooter[0])
+            #update the whos firing instance variable
+            #[(assetName, systemName, targetId, scheduledFireTime),..]
+            self.firing.append((shooter[0][0], shooter[0][1], targetid, time-2-ttd))#in main loop check if time <= the firing time and shoot if true
+            #update the targetedAssets instance variable
+            #remove key value targetid: targetedAsset
+            print(self.targetedAssetsList)
+            self.targetedAssetsList.pop(targetid)
+            # self.targetedAssetsList.remove(targetedAsset)
+            #[ (angle_between(angleAsset, angleMissle), asset, track, self.timeToDie(track, asset)), ...]
+            return True
+
+        else:
         # if not saveable, return false
+            return False
 
-        # if the asset is saveable, save a list of ship_actions to an instance variable to be fired
-        # and cleared at end of state (also update your inventory instance variable now)
-        # maybe use the assignWeapons as a helper function
-        pass
-
-
-    def inventory(self, asset: AssetPb) -> dict:
+    def updateInventory(self, asset: AssetPb) -> dict:
+        ammo={"Cannon_System":972, "Chainshot_System":343}
         # doesn't need to be dict, should make taking inventory of
+        weapon_info = []
+        for weapon in asset.weapons:
+            # we care about the (weaponname, (xyz), and speed)
+            if weapon.Quantity:
+                weapon_info.append((asset.AssetName, weapon.SystemName, weapon.Quantity, (asset.PositionX, asset.PositionY),ammo[weapon.SystemName]))
+
+        for info in weapon_info:
+            self.inventory.append(info)
         # available weapons trivial. need asset name, weapons, ammo, time to die
-        pass
+        return weapon_info #not strictly necessary
 
 
     def simulateRedirectedMissle(self, missle, assetMap, time):
