@@ -15,12 +15,14 @@ import re
 import time
 import math
 import sys
+import heapq
 
 class Mellon(AiManager):
     # Constructor
     def __init__(self, publisher: Publisher):
         print("Constructing AI Manager")
         self.ai_pub = publisher
+        self.targetedAssetsList = []
 
     # Is passed StatePb from Planner
     def receiveStatePb(self, msg: StatePb):
@@ -35,10 +37,17 @@ class Mellon(AiManager):
 
     # This method/message is used to nofify that a scenario/run has ended
     def receiveScenarioConcludedNotificationPb(self, msg: ScenarioConcludedNotificationPb):
+            #TEST AND SEE IN GUI IF WE ARE CORRECTLY DECIDING ON TARGETS (seems ok)
+            #TRACKID7 ENEMY5
+            # if msg.time>5 and msg.time<12:
+            #     output_message: OutputPb = OutputPb()
+            #     ship_action.weapon = "Chainshot_System"
+            #     return output_message 
         print("Ended Run: " + str(msg.sessionId) + " with score: " + str(msg.score))
 
     # Example function for building OutputPbs, returns OutputPb
     def act(self, msg: StatePb):
+        output_message: OutputPb = OutputPb()
         # idle
         if msg.Tracks:
             # spawn emptyy output message
@@ -47,39 +56,29 @@ class Mellon(AiManager):
             assetMap = self.assetMap(msg)# def trackMap(self, msg: StatePb)-> TrackPb:
 
             # grab the likely targeted assets at this time
-            targetedAssets = self.targetedAssets(msg, trackMap, assetMap)# def targetedAsset(self, msg: StatePb, trackMap: dict, assetMap: dict) -> dict:
+            self.targetedAssetsList = self.targetedAssets(msg, trackMap, assetMap)# def targetedAsset(self, msg: StatePb, trackMap: dict, assetMap: dict) -> dict:
             #now we have the following DS
             #[ (angle_between(angleAsset, angleMissle), asset, track, self.timeToDie(track, asset)), ...]
 
-            #TEST AND SEE IN GUI IF WE ARE CORRECTLY DECIDING ON TARGETS
-            #TRACKID7 ENEMY5
-            if msg.time>5 and msg.time<12:
-                # ship_action.TargetId = missle[1]
-                # ship_action.weapon
-                # ship_action.AssetName 
-                # output_message.actions.append(ship_action)
-                output_message: OutputPb = OutputPb()
+            # I am able to kill things, HVU_Galleon_5 has no ammo lol
+            if msg.time>4 and msg.time<12:
                 ship_action : ShipActionPb = ShipActionPb()
                 ship_action.TargetId = 7
-                # shipAction.weapon = "Cannon_System"
-                ship_action.AssetName = "Galleon_1"
-                ship_action.weapon = "Chainshot_System"
+                ship_action.weapon = "Cannon_System"
+                ship_action.AssetName = "Galleon_2"
                 output_message.actions.append(ship_action)
-                return output_message 
-                # for target_id, tuple_asset_info in targetedAssets.items():
-                #     if tuple_asset_info[2] == "HVU_Galleon_5":
-                #         # if there are targeted assets, then we need to act
-                #         shipAction : ShipActionPb = ShipActionPb()
-                #         # just assume you have ammo in galleon 0 and shoot it
-                #         shipAction.AssetName = "HVU_Galleon_5"
-                #         shipAction.weapon = "Cannon_System"
-                #         shipAction.TargetId = tuple_asset_info[2].TrackId
-                #         output_message.actions.append(ship_action)
-                #     else:
-                #         pass
-            else:
-                output_message: OutputPb = OutputPb()
+                # print(ship_action)
+                # print(output_message)
                 return output_message
+
+            # def hvu_heap
+
+            # def pointsCalulation  X 2
+
+            # def galleon_heap
+
+            
+            return output_message
 
             # determine if any action is needed currently (define a threat threshold, ties into
             # custom policy)
@@ -90,16 +89,115 @@ class Mellon(AiManager):
 
         else:
             print("idle")
-            output_message: OutputPb = OutputPb()
             return output_message
 
+    
+    def pointsCalculation(self, policy):
+        #use knowledge of points per shot, hit, and death of given ship and weapon to determine
+        #current expected points of the game
 
-    # def timeToDie(self, track: TrackPb, asset: AssetPb) -> float:
-            return output_message
+        # if given hvu==policy:
+            # calculate points based on current inventory and current state of the game
 
-    def Inventory(self, asset: AssetPb) -> dict:
+        # if given galleon==policy:
+            # calculate points based on disregarding hvu and protecting rest
+
+        pass
+
+
+    #the heap aspect is rendered obsolete if I save ship_actions from "saveable" function
+    def hvu_heap(self, msg: StatePb, trackMap: dict, assetMap: dict) -> dict:
+        # make a hvu heap based on hvu calculation
+        hvu_heap = []
+        health_based = []
+        #grab the hvus
+        for asset in assetMap.values():
+            if "HVU" in asset.AssetName:
+                health_based.append((asset, asset.health))
+        #compare health of the hvus
+        health_based = sorted(health_based, key=lambda x: x[1])
+        #check if hvu is targeted (notice this is missing the possibility of redirect hit, but is
+        # fixed when we overwrite our targetedAssets info with the redirected info)
+
+        ttd_based = []
+        for asset in tent:
+            # for each occurence of the asset in targetedAssets, add to unsorted arry to be sorted
+            # time to die prior to adding to the heap
+            for tup_asset in self.targetedAssets:
+                if tup_asset[0].AssetName == asset.AssetName:
+                    #[ (angle_between(angleAsset, angleMissle), asset, track, self.timeToDie(track, asset)), ...]
+                    ttd_based.append((asset, tup_asset[3]))
+            ttd_based = sorted(ttd_based, key=lambda x: x[1])
+
+        # check if saveable given current inventory for each hvu in order  (loop)
+        # def saveable
+        # if returned false then pop the hvu from the heap (i dont really see the need to hold onto
+        # the heap variable though if I recalculate at each step)
+
+        #assign each hvu a tuple of (shipGunInfo+TrackId) (unless this is done in the saveable function)
+        # def assignWeapons
+
+        # return the hvuheap
+        
+        # BACK IN THE ACT FUNCTION
+
+        # given whats left of the heap, decide if given how many galleons we have if strategy
+        # needs to hard switch to protect all galleon's with closest strategy to maximize points
+        # i.e. do a max point scenario calculation for current state and compare with hard switch
+        # def pointsCalculation(policy="hvu")
+        # def pointsCalculation(policy="galleon")
+
+        #if you switch strategy, just clear the ship_actions instance variable + pass an
+        # un-mutilated current state inventory to heapGalleons to use. update a policy instance
+        # variable such that next state we automatically jump to the heapGalleons strategy
+
+        # if you don't switch strategy, still shoot with inventory that can't possibly help
+        # remaining hvu's to protect the heap of galleons
+        pass
+
+    def heapGalleons(self, msg: StatePb, trackMap: dict, assetMap: dict) -> dict:
+        # sort by health, sort by time to die (pretty similar to hvu_heap)
+
+        # check if saveable for each asset in order (loop)
+
+        # if saveable and inventory contains enough ammo of the correct quality, add to instance
+        # variable of ship_actions (if not saveable do a simulation of the redirected missle and
+        # add to targetedAssets instance variable). also default shoot ammo if you only
+        # have 3 states alive left and you have 3 ammo for a given weapon (this is 
+        # the base case, at this point you need to shoot but higher order logic will only
+        # recognize this in the next state; big flaw)
+
+        # return the heapGalleons (not strictly necessary)
+        pass
+
+    def assignWeapons(self):
+        # def inventory()
+        # ... update inventory instance variable after you assign
+        # ... set inventory instance to be reset at end of state message
+
+        pass
+
+    def savable(self, asset: AssetPb, track: TrackPb, time: float) -> bool:
+        # def inventory()
+
+        # for all occurences of the asset in targetedAssets check if we have enough quality ammo now and
+        # later to save (if ttd of asset is less then ttd of defending missles == quality ammo)
+
+        # if not saveable, calculate the simulateRedirectedMissle and update targetedAssets/ create
+        # a special instance variable that stores the redirected missles and automatically updates
+        # the original instance variable after every new state message is received
+
+        # if not saveable, return false
+
+        # if the asset is saveable, save a list of ship_actions to an instance variable to be fired
+        # and cleared at end of state (also update your inventory instance variable now)
+        # maybe use the assignWeapons as a helper function
+        pass
+
+
+    def inventory(self, asset: AssetPb) -> dict:
         # doesn't need to be dict, should make taking inventory of
-        # available weapons trivial
+        # available weapons trivial. need asset name, weapons, ammo, time to die
         pass
 
 
@@ -108,17 +206,6 @@ class Mellon(AiManager):
         # calculate the new target based on location of missle at new time step
         pass
 
-    # missleLikelihoods[track.TrackId] = degreeOfParallelism[0]
-    # return missleLikelihoods
-    # degreeOfParallelism.append((angle_between(unitAsset, unitMissle), track.TrackId, asset.AssetName))
-    def priorityMissles(self, missleLikelihoods, assetMap):
-        # HVU should always be prioritized
-
-        # based on who is targeted, how much ammo we have, how long until arrival
-
-        # firing policies should vary, but generally waiting until the last second is a good idea
-        # or until angle is effectively 0
-        pass
 
 
     # helper function, in reality protobufs are much cleaner to work with
@@ -247,6 +334,38 @@ class Mellon(AiManager):
         #     print("9 " + str(track.VelocityY))
         #     print("10: " + str(track.VelocityZ))
         # print("**********************************")
+
+"""
+not currently in use:
+
+    # missleLikelihoods[track.TrackId] = degreeOfParallelism[0]
+    # return missleLikelihoods
+    # degreeOfParallelism.append((angle_between(unitAsset, unitMissle), track.TrackId, asset.AssetName))
+    def priorityMissles(self, missleLikelihoods, assetMap):
+        # HVU should always be prioritized
+
+        # based on who is targeted, how much ammo we have, how long until arrival
+
+        # firing policies should vary, but generally waiting until the last second is a good idea
+        # or until angle is effectively 0
+        pass
+
+    def policy(self):
+                # for target_id, tuple_asset_info in targetedAssets.items():
+                #     if tuple_asset_info[2] == "HVU_Galleon_5":
+                #         # if there are targeted assets, then we need to act
+                #         shipAction : ShipActionPb = ShipActionPb()
+                #         # just assume you have ammo in galleon 0 and shoot it
+                #         shipAction.AssetName = "HVU_Galleon_5"
+                #         shipAction.weapon = "Cannon_System"
+                #         shipAction.TargetId = tuple_asset_info[2].TrackId
+                #         output_message.actions.append(ship_action)
+                #     else:
+                #         pass
+        pass
+
+
+"""
 
 
 
