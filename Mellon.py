@@ -22,7 +22,7 @@ class Mellon(AiManager):
     def __init__(self, publisher: Publisher):
         print("Constructing AI Manager")
         self.ai_pub = publisher
-        self.targetedAssetsList = {}
+        self.targetedAssetsList = []
         #if you continuously update your targeted assets with all of the new state info
         #you will probably begin shooting twice at the same missles; you should probably
         #double check new targeted assets with trackids aren't already in firing (TODO)
@@ -49,7 +49,7 @@ class Mellon(AiManager):
     # This method/message is used to nofify that a scenario/run has ended
     def receiveScenarioConcludedNotificationPb(self, msg: ScenarioConcludedNotificationPb):
         self.inventory = []
-        self.targetedAssetsList = {}
+        self.targetedAssetsList = []
         print("Ended Run: " + str(msg.sessionId) + " with score: " + str(msg.score))
 
     # Example function for building OutputPbs, returns OutputPb
@@ -160,10 +160,15 @@ class Mellon(AiManager):
         for asset in health_based:
             # for each occurence of the asset in targetedAssets, add to unsorted arry to be sorted
             # time to die prior to adding to the heap
-            for key, tup_asset in self.targetedAssetsList.items():
+            # [(angle_between(v1, v2), asset,
+            #                             track, self.timeToDie(track, asset)))]
+            for tup_asset in self.targetedAssetsList:
+                print(self.targetedAssetsList)
+                print(tup_asset)
+                print(asset[0])
                 if tup_asset[1].AssetName == asset[0].AssetName:
                     #[ (angle_between(angleAsset, angleMissle), asset, track, self.timeToDie(track, asset)), ...]
-                    ttd_based.append((asset[0], tup_asset[3], tup_asset[2], tup_asset))
+                    ttd_based.append((asset[0], tup_asset[3], tup_asset[2].TrackId, tup_asset))
                     #[(asset, ttd),..]
             ttd_based = sorted(ttd_based, key=lambda x: x[1])
 
@@ -243,12 +248,13 @@ class Mellon(AiManager):
             self.inventory.remove(shooter[0])
             #update the whos firing instance variable
             #[(assetName, systemName, targetId, scheduledFireTime),..]
-            self.firing.append((shooter[0][0], shooter[0][1], targetid, time-2-ttd))#in main loop check if time <= the firing time and shoot if true
+            #if t=10 and ttd=20 then shoot at 28, so 10+20-2
+            self.firing.append((shooter[0][0], shooter[0][1], targetid, time+ttd-6))#in main loop check if time <= the firing time and shoot if true
             #update the targetedAssets instance variable
             #remove key value targetid: targetedAsset
             print(self.targetedAssetsList)
-            self.targetedAssetsList.pop(targetid)
-            # self.targetedAssetsList.remove(targetedAsset)
+            # self.targetedAssetsList.pop(targetid)
+            self.targetedAssetsList.remove(targetedAsset)
             #[ (angle_between(angleAsset, angleMissle), asset, track, self.timeToDie(track, asset)), ...]
             return True
 
@@ -303,7 +309,7 @@ class Mellon(AiManager):
     def targetedAssets(self, msg: StatePb, trackMap: dict, assetMap: dict) -> dict:
         #https://stackoverflow.com/questions/2827393/angles-between-two-n-dimensional-vectors-in-python#:~:text=Here%20is%20a%20function%20which%20will%20correctly%20handle%20these%20cases%3A
         #linear algebra, if a the vector of the x,y of asset and x,y of missle are parallel, then the missle is headed towards the asset
-        missleLikelihoods={}
+        missleLikelihoods=[]
         #iterate through each track in the dict (TrackId is repeated information and used only for key)
         for track_id, track in trackMap.items():
             if track.ThreatRelationship == "Hostile":
@@ -352,7 +358,7 @@ class Mellon(AiManager):
                     degreeOfParallelism = sorted(degreeOfParallelism, key=lambda x: x[0])
                 else:
                     return None
-                missleLikelihoods[track.TrackId] = degreeOfParallelism[0]
+                missleLikelihoods.append(degreeOfParallelism[0])
         return missleLikelihoods
 
     def timeToDie(self, track: TrackPb, asset: AssetPb) -> float:
